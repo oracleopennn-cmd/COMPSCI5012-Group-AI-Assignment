@@ -1,0 +1,57 @@
+{# Partial for AJAX updates: resource list + pagination #}
+
+<div class="video-grid" id="resource-list">
+    {% for item in resources %}
+        <div class="card video-card">
+            <a href="{% url 'study_detail' %}?id={{ item.id }}" style="text-decoration:none;color:inherit;">
+                <div class="video-thumb-wrapper">
+                    {% if item.image %}
+                        {% if 'http' in item.image %}
+                            <img class="video-thumb" src="{{ item.image }}" alt="{{ item.title }}"
+                                 onerror="this.style.display='none'; this.parentNode.classList.add('thumb-failed');">
+                        {% else %}
+                            <img class="video-thumb" src="/public/images/{{ item.image }}" alt="{{ item.title }}"
+                                 onerror="this.style.display='none'; this.parentNode.classList.add('thumb-failed');">
+                        {% endif %}
+                    {% endif %}
+                </div>
+                <h4 class="video-title">{{ item.title }}</h4>
+                <p class="card-desc">{{ item.desc }}</p>
+                <div class="video-meta">
+                    <span class="tag">{{ item.ltype }}</span>
+                    <span class="tag tag-difficulty">难度 {{ item.difficulty }}</span>
+                    <span class="video-author">{{ item.author }}</span>
+                    <span class="video-author">{{ item.time }}</span>
+                </div>
+                <div class="video-footer">
+                    <span class="video-utype">{{ item.utype }}</span>
+                    {% if item.url %}
+                        <span class="video-link">点击进入 &gt;</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% if path_id %}
+                <button class="video-add-to-path-btn" onclick="addToPath({{ path_id }}, {{ item.id }})" title="添加到学习路径">+</button>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+
+<div class="pagination" id="pagination">
+    {% if page_obj.has_previous %}
+        <a class="page-link" data-page="{{ page_obj.previous_page_number }}" href="?{% if q %}q={{ q }}&{% endif %}page={{ page_obj.previous_page_number }}#resource-list">«</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+            <span class="page-link current">{{ num }}</span>
+        {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+            <a class="page-link" data-page="{{ num }}" href="?{% if q %}q={{ q }}&{% endif %}page={{ num }}#resource-list">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+        <a class="page-link" data-page="{{ page_obj.next_page_number }}" href="?{% if q %}q={{ q }}&{% endif %}page={{ page_obj.next_page_number }}#resource-list">»</a>
+    {% endif %}
+</div>
+
