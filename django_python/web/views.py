@@ -68,7 +68,6 @@ def main_page(request):
     Home page (port of the old Vue main.vue).
     """
 
-    return render(request, 'main.html')
 
 
 def study_page(request):
@@ -77,15 +76,12 @@ def study_page(request):
     """
 
 
-    return render(request, 'study.html')
-
 
 def record_page(request):
     """
     Study history page (port of the old Vue record.vue).
     """
 
-    return render(request, 'record.html')
 
 
 def delete_record(request, record_id):
@@ -93,7 +89,6 @@ def delete_record(request, record_id):
     Delete a single study record for the current user.
     """
 
-    return JsonResponse({'error': 'Record does not exist'}, status=404)
 
 
 def clear_all_records(request):
@@ -101,7 +96,6 @@ def clear_all_records(request):
     Delete all study records for the current user.
     """
 
-    return JsonResponse({'success': True})
 
 
 def _create_initial_learning_path(user, scholar_level):
@@ -109,14 +103,55 @@ def _create_initial_learning_path(user, scholar_level):
     Create an initial learning path based on the scholar level.
     """
 
-    return None
 
 
 def signup_view(request):
     """
     Sign-up page: create Django User and initial learning path based on scholar level.
     """
+    error = None
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password1 = request.POST.get('password1', '')
+        password2 = request.POST.get('password2', '')
+        scholar_level = request.POST.get('scholar_level', '').strip()
+        nickname = request.POST.get('nickname', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        sex = request.POST.get('sex', '').strip()
 
+        if not username or not password1:
+            error = u"Username and password are required."
+        elif password1 != password2:
+            error = u"The two passwords do not match."
+        elif User.objects.filter(username=username).exists():
+            error = u"Username already exists."
+        elif not scholar_level:
+            error = u"Please select a scholar level."
+        else:
+            try:
+                scholar_level = int(scholar_level)
+                if scholar_level not in [1, 2, 3]:
+                    error = u"Invalid scholar level."
+                else:
+                    # 创建用户
+                    user = User.objects.create_user(username=username, password=password1)
+
+                    # 创建用户资料
+                    UserProfile.objects.create(
+                        user=user,
+                        scholar_level=scholar_level,
+                        nickname=nickname or username,
+                        phone=phone,
+                        sex=sex,
+                    )
+
+                    # 根据学者等级创建初始学习路径
+                    _create_initial_learning_path(user, scholar_level)
+
+                    login(request, user)
+                    return redirect('/')
+            except ValueError:
+                error = u"Invalid scholar level."
 
     return render(request, 'signup.html', {'error': error})
 
@@ -125,14 +160,26 @@ def login_view(request):
     """
     Simple login page: username + password.
     """
-
+    error = None
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            next_url = request.GET.get('next')
+            if not next_url or next_url == '/':
+                next_url = '/admin-dashboard/' if _is_admin_user(user) else '/'
+            return redirect(next_url)
+        else:
+            error = u"Incorrect username or password."
 
     return render(request, 'login.html', {'error': error})
 
 
 def logout_view(request):
     """
-    Log out and return to the homepage.
+    退出登录，并返回首页。
     """
     logout(request)
     return redirect('/')
@@ -142,8 +189,40 @@ def profile_view(request):
     """
     User profile page: view and edit basic info.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/user/profile/')
 
-    return render(request, 'profile.html')
+    profile, created = UserProfile.objects.get_or_create(user=request.user)
+
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        nickname = request.POST.get('nickname', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        sex = request.POST.get('sex', '').strip()
+        scholar_level = request.POST.get('scholar_level', '').strip()
+
+        profile.nickname = nickname or request.user.username
+        profile.phone = phone
+        profile.sex = sex
+
+        if scholar_level:
+            try:
+                profile.scholar_level = int(scholar_level)
+            except ValueError:
+                error = u"Invalid scholar level."
+
+        if not error:
+            profile.save()
+            success = u"Profile updated successfully."
+
+    context = {
+        'profile': profile,
+        'error': error,
+        'success': success,
+    }
+    return render(request, 'profile.html', context)
 
 
 def study_detail_page(request):
@@ -152,7 +231,6 @@ def study_detail_page(request):
     Currently uses static questions; can be moved to DB later.
     """
 
-    return render(request, 'study_detail.html')
 
 
 def study_detail_record(request):
@@ -161,19 +239,13 @@ def study_detail_record(request):
     """
 
 
-    return JsonResponse({'error': 'Invalid request.'}, status=400)
-
-
 def study_detail_legacy(request, rid):
     """
-    For compatibility with legacy frontends, use the `/study_detail/<id>` style link:
-
-    - If `<id>` is a pure number, redirect to `/study_detail/?id=<id>`
-
-    - Otherwise, keep the original path but add `?id=` for easier backend handling.
+    兼容旧前端的 /study_detail/<id> 风格链接：
+    - 如果 <id> 是纯数字，则重定向到 /study_detail/?id=<id>
+    - 否则保持原路径但加上 ?id=，方便后端统一处理
     """
-    rid_str = _clean_str(rid)
-    return redirect('/study_detail/?id=%s' % rid_str)
+
 
 
 def path_page(request):
@@ -181,7 +253,6 @@ def path_page(request):
     Learning path overview: list all paths for the current user.
     """
 
-    return render(request, 'path.html')
 
 
 def path_detail_page(request, path_id):
@@ -189,7 +260,6 @@ def path_detail_page(request, path_id):
     Learning path detail: show and manage items in a path.
     """
 
-    return render(request, 'path_detail.html')
 
 
 def path_create(request):
@@ -198,8 +268,6 @@ def path_create(request):
     """
 
 
-    return render(request, 'path_create.html')
-
 
 def path_edit(request, path_id):
     """
@@ -207,7 +275,6 @@ def path_edit(request, path_id):
     Owner or admin can edit.
     """
 
-    return render(request, 'path_edit.html')
 
 
 def path_delete(request, path_id):
@@ -244,6 +311,12 @@ def _is_admin_user(user):
     - Django superuser/staff
     - or username == 'admin' (legacy)
     """
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        return bool(getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False) or user.username == 'admin')
+    except Exception:
+        return False
 
 
 def forum_page(request):
@@ -251,7 +324,6 @@ def forum_page(request):
     Forum index page: list all posts.
     """
 
-    return render(request, 'forum.html')
 
 
 def forum_new_post(request):
@@ -259,7 +331,6 @@ def forum_new_post(request):
     New post page.
     """
 
-    return render(request, 'forum_new.html')
 
 
 def forum_edit_post(request, post_id):
@@ -269,7 +340,6 @@ def forum_edit_post(request, post_id):
     - Admin can edit any posts
     """
 
-    return render(request, 'forum_edit.html')
 
 
 def forum_delete_post(request, post_id):
@@ -278,13 +348,11 @@ def forum_delete_post(request, post_id):
     """
 
 
-
 def groups_page(request):
     """
     Study groups page: list groups the user has joined.
     """
 
-    return render(request, 'groups.html')
 
 
 def groups_detail_page(request, group_id):
@@ -292,7 +360,6 @@ def groups_detail_page(request, group_id):
     Group detail page: show group info and messages.
     """
 
-    return render(request, 'groups_detail.html')
 
 
 def groups_create(request):
@@ -300,14 +367,12 @@ def groups_create(request):
     Create a new group.
     """
 
-    return render(request, 'groups_create.html')
 
 
 def groups_join(request):
     """
     Request to join a group by group ID (creator approval required).
     """
-
 
 
 def groups_handle_join_request(request, req_id):
@@ -322,6 +387,7 @@ def groups_invite(request, group_id):
     Invite a user to a group (invitee must accept).
     Only group creator/admin can invite.
     """
+
 
 
 def groups_respond_invite(request, invite_id):
@@ -357,13 +423,11 @@ def admin_dashboard(request):
     Admin dashboard home: stats, charts, and preview lists.
     """
 
-    return render(request, 'admin_dashboard.html')
 
 
 def admin_resource_edit(request, resource_id):
     """Admin: edit any resource."""
 
-    return render(request, 'admin_resource_edit.html')
 
 
 def admin_resource_json(request, resource_id):
@@ -389,12 +453,9 @@ def admin_user_delete(request, user_id):
 def admin_resource_create(request):
     """Admin: create new resource."""
 
-    return render(request, 'admin_resource_edit.html', )
-
 
 def _admin_list_params(request, model_name, default_per_page=20):
     """Common pagination for admin list views."""
-
 
 
 def admin_resources_list(request):
@@ -406,9 +467,9 @@ def admin_posts_list(request):
     """Admin: posts list with CRUD."""
 
 
+
 def admin_groups_list(request):
     """Admin: groups list with CRUD."""
-
 
 
 def admin_users_list(request):
@@ -434,10 +495,8 @@ def admin_post_edit(request, post_id):
     """Admin: update post (modal submit), redirect to admin posts list."""
 
 
-
 def admin_post_json(request, post_id):
     """Admin: get one post as JSON (for edit modal)."""
-
 
 
 def admin_group_create(request):
@@ -457,5 +516,4 @@ def admin_path_edit(request, path_id):
 
 def admin_path_json(request, path_id):
     """Admin: get one path as JSON (for edit modal)."""
-
 

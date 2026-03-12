@@ -10,8 +10,6 @@ class Resource(models.Model):
     Learning resource table (port of the old Vue 'resource' structure).
     """
 
-    def __unicode__(self):
-        return self.title
 
 
 class StudyRecord(models.Model):
@@ -19,16 +17,13 @@ class StudyRecord(models.Model):
     Study record table (port of the old 'record' structure).
     """
 
-    def __unicode__(self):
-        return u"%s - %s" % (self.user or u"Anonymous", self.resource.title)
 
 
 class LearningPath(models.Model):
     """
     Learning path table: user-created learning plans.
     """
-    def __unicode__(self):
-        return u"%s - %s" % (self.user.username, self.title)
+
 
 
 class LearningPathItem(models.Model):
@@ -36,17 +31,12 @@ class LearningPathItem(models.Model):
     Learning path item: resources contained in a path, ordered.
     """
 
-    def __unicode__(self):
-        return u"%s - %s" % (self.path.title, self.resource.title)
 
 
 class Post(models.Model):
     """
     Forum post table.
     """
-
-    def __unicode__(self):
-        return u"%s - %s" % (self.user.username, self.content[:50])
 
 
 class Group(models.Model):
@@ -55,17 +45,12 @@ class Group(models.Model):
     """
 
 
-    def __unicode__(self):
-        return u"%s (%s)" % (self.title, self.groupid)
-
 
 class GroupMember(models.Model):
     """
     Group member table.
     """
 
-    def __unicode__(self):
-        return u"%s in %s" % (self.user.username, self.group.title)
 
 
 class GroupMessage(models.Model):
@@ -73,16 +58,12 @@ class GroupMessage(models.Model):
     Group message table.
     """
 
-    def __unicode__(self):
-        return u"%s: %s" % (self.user.username, self.content[:30])
-
 
 class GroupJoinRequest(models.Model):
     """
     Request to join a group (requires creator approval).
     """
-    def __unicode__(self):
-        return u"%s -> %s (%s)" % (self.user.username, self.group.title, self.status)
+
 
 
 class GroupInvite(models.Model):
@@ -90,17 +71,28 @@ class GroupInvite(models.Model):
     Invitation to join a group (invitee must accept).
     """
 
-    def __unicode__(self):
-        return u"Invite %s to %s (%s)" % (self.invitee.username, self.group.title, self.status)
 
 
 class UserProfile(models.Model):
     """
     User profile table: extended user information.
     """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    scholar_level = models.IntegerField(default=1, help_text=u"Scholar level: 1=Beginner, 2=Intermediate, 3=Advanced")
+    nickname = models.CharField(max_length=50, blank=True, help_text=u"Nickname")
+    phone = models.CharField(max_length=20, blank=True, help_text=u"Phone number")
+    avatar = models.CharField(max_length=255, blank=True, help_text=u"Avatar")
+    sex = models.CharField(max_length=1, blank=True, help_text=u"Gender: M=Male, F=Female")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __unicode__(self):
         return u"%s - %s" % (self.user.username, self.get_scholar_level_display())
 
     def get_scholar_level_display(self):
-        return
+        level_map = {
+            1: u"Beginner Scholar",
+            2: u"Intermediate Scholar",
+            3: u"Advanced Scholar",
+        }
+        return level_map.get(self.scholar_level, u"Unknown")
