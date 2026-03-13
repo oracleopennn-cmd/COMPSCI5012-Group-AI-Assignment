@@ -1,11 +1,154 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>record</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}Study History{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="history-header-wrapper">
+        <h2 class="history-page-title">My Learn Log</h2>
+        <div class="history-header card">
+            <div class="history-stat">
+                <div class="history-stat-label">Total Time</div>
+                <div class="history-stat-value">{{ total_hours }} Hr</div>
+            </div>
+            <div class="history-stat">
+                <div class="history-stat-label">Times</div>
+                <div class="history-stat-value">{{ total_times }} x</div>
+            </div>
+            <div class="history-stat">
+                <div class="history-stat-label">Recent</div>
+                <div class="history-stat-value">{{ recent_date }}</div>
+            </div>
+        </div>
+        {% if records %}
+            <button class="history-clear-all-btn" type="button" onclick="clearAllRecords()">Clear all</button>
+        {% endif %}
+    </div>
+
+    {% if records %}
+        <div class="history-list">
+            {% for item in records %}
+                <div class="history-item card" data-record-id="{{ item.id }}">
+                    <a href="{% url 'study_detail' %}?id={{ item.resource.id }}" class="history-main">
+                        <div class="history-thumb-wrapper">
+                            {% if item.resource.image %}
+                                {% if 'http' in item.resource.image %}
+                                    <img class="history-thumb" src="{{ item.resource.image }}" alt="{{ item.resource.title }}"
+                                         onerror="this.style.display='none'; this.parentNode.classList.add('thumb-failed');">
+                                {% else %}
+                                    <img class="history-thumb" src="/public/images/{{ item.resource.image }}" alt="{{ item.resource.title }}"
+                                         onerror="this.style.display='none'; this.parentNode.classList.add('thumb-failed');">
+                                {% endif %}
+                            {% endif %}
+                            <div class="history-thumb-duration">{{ item.dura_minutes|floatformat:0 }}Min</div>
+                        </div>
+                        <div class="history-info">
+                            <div class="history-title">{{ item.resource.title }}</div>
+                            <div class="history-tags">
+                                <span class="pill">{{ item.resource.ltype }}</span>
+                                <span class="pill">{{ item.resource.utype }}</span>
+                            </div>
+                            <div class="history-rating">
+                                {% for i in "12345" %}
+                                    {% if forloop.counter <= item.resource.difficulty %}
+                                        <span class="star filled">★</span>
+                                    {% else %}
+                                        <span class="star">☆</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            <div class="history-meta">
+                                <span>@{{ item.resource.author }}</span>
+                                <span>{{ item.time }}</span>
+                            </div>
+                        </div>
+                    </a>
+                    <button class="history-delete-btn" type="button" onclick="deleteRecord({{ item.id }})" title="Delete">🗑</button>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No study records yet.</p>
+    {% endif %}
+</div>
+
+{% csrf_token %}
+<script>
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function getCsrfToken() {
+    var token = getCookie('csrftoken');
+    if (!token) {
+        var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfInput) {
+            token = csrfInput.value;
+        }
+    }
+    return token;
+}
+
+function deleteRecord(recordId) {
+    showConfirm('Are you sure you want to delete this record?', function() {
+    fetch('/record/delete/' + recordId + '/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (response.ok) {
+            var item = document.querySelector('[data-record-id="' + recordId + '"]');
+            if (item) {
+                item.remove();
+                location.reload(); // 重新加载以更新统计数据
+            }
+        } else {
+            showModal('Failed to delete. Please try again.', 'error');
+        }
+    })
+    .catch(function(error) {
+        showModal('Failed to delete: ' + error, 'error');
+    });
+    });
+}
+
+function clearAllRecords() {
+    showConfirm('Delete all study records? This action cannot be undone.', function() {
+    fetch('/record/clear/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (response.ok) {
+            location.reload();
+        } else {
+            showModal('Failed to delete. Please try again.', 'error');
+        }
+    })
+    .catch(function(error) {
+        showModal('Failed to delete: ' + error, 'error');
+    });
+    });
+}
+</script>
+{% endblock %}
+

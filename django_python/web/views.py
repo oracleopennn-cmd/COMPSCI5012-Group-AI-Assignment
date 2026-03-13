@@ -60,15 +60,12 @@ def index(request):
     """
     Redirect root (/) to /main/ to keep the old Vue behavior.
     """
-    return redirect('main_page')
 
 
 def main_page(request):
     """
     Home page (port of the old Vue main.vue).
     """
-
-    return render(request, 'main.html')
 
 
 def study_page(request):
@@ -77,15 +74,12 @@ def study_page(request):
     """
 
 
-    return render(request, 'study.html')
-
 
 def record_page(request):
     """
     Study history page (port of the old Vue record.vue).
     """
 
-    return render(request, 'record.html')
 
 
 def delete_record(request, record_id):
@@ -93,7 +87,6 @@ def delete_record(request, record_id):
     Delete a single study record for the current user.
     """
 
-    return JsonResponse({'error': 'Record does not exist'}, status=404)
 
 
 def clear_all_records(request):
@@ -101,15 +94,12 @@ def clear_all_records(request):
     Delete all study records for the current user.
     """
 
-    return JsonResponse({'success': True})
-
 
 def _create_initial_learning_path(user, scholar_level):
     """
     Create an initial learning path based on the scholar level.
     """
 
-    return None
 
 
 def signup_view(request):
@@ -118,8 +108,6 @@ def signup_view(request):
     """
 
 
-    return render(request, 'signup.html', {'error': error})
-
 
 def login_view(request):
     """
@@ -127,23 +115,17 @@ def login_view(request):
     """
 
 
-    return render(request, 'login.html', {'error': error})
-
 
 def logout_view(request):
     """
-    Log out and return to the homepage.
+    退出登录，并返回首页。
     """
-    logout(request)
-    return redirect('/')
 
 
 def profile_view(request):
     """
     User profile page: view and edit basic info.
     """
-
-    return render(request, 'profile.html')
 
 
 def study_detail_page(request):
@@ -152,28 +134,19 @@ def study_detail_page(request):
     Currently uses static questions; can be moved to DB later.
     """
 
-    return render(request, 'study_detail.html')
-
-
 def study_detail_record(request):
     """
     Record study duration for a resource.
     """
 
 
-    return JsonResponse({'error': 'Invalid request.'}, status=400)
-
 
 def study_detail_legacy(request, rid):
     """
-    For compatibility with legacy frontends, use the `/study_detail/<id>` style link:
-
-    - If `<id>` is a pure number, redirect to `/study_detail/?id=<id>`
-
-    - Otherwise, keep the original path but add `?id=` for easier backend handling.
+    兼容旧前端的 /study_detail/<id> 风格链接：
+    - 如果 <id> 是纯数字，则重定向到 /study_detail/?id=<id>
+    - 否则保持原路径但加上 ?id=，方便后端统一处理
     """
-    rid_str = _clean_str(rid)
-    return redirect('/study_detail/?id=%s' % rid_str)
 
 
 def path_page(request):
@@ -181,7 +154,6 @@ def path_page(request):
     Learning path overview: list all paths for the current user.
     """
 
-    return render(request, 'path.html')
 
 
 def path_detail_page(request, path_id):
@@ -189,7 +161,6 @@ def path_detail_page(request, path_id):
     Learning path detail: show and manage items in a path.
     """
 
-    return render(request, 'path_detail.html')
 
 
 def path_create(request):
@@ -198,16 +169,11 @@ def path_create(request):
     """
 
 
-    return render(request, 'path_create.html')
-
-
 def path_edit(request, path_id):
     """
     Edit an existing learning path.
     Owner or admin can edit.
     """
-
-    return render(request, 'path_edit.html')
 
 
 def path_delete(request, path_id):
@@ -217,12 +183,10 @@ def path_delete(request, path_id):
     """
 
 
-
 def path_add_resource(request, path_id):
     """
     Add a resource to a learning path.
     """
-
 
 
 def path_remove_resource(request, path_id, item_id):
@@ -237,29 +201,90 @@ def path_toggle_complete(request, path_id, item_id):
     Toggle completion status for a learning path item.
     """
 
-
 def _is_admin_user(user):
     """
     Admin definition:
     - Django superuser/staff
     - or username == 'admin' (legacy)
     """
+    try:
+        if not user or not getattr(user, 'is_authenticated', False):
+            return False
+        return bool(getattr(user, 'is_superuser', False) or getattr(user, 'is_staff', False) or user.username == 'admin')
+    except Exception:
+        return False
 
 
 def forum_page(request):
     """
     Forum index page: list all posts.
     """
+    posts = Post.objects.select_related('user').all()
 
-    return render(request, 'forum.html')
+    # 分页
+    paginator = Paginator(posts, 20)
+    page = request.GET.get('page', 1)
+    try:
+        page_obj = paginator.page(page)
+    except (PageNotAnInteger, EmptyPage):
+        page_obj = paginator.page(1)
+
+    post_list = []
+    is_admin = _is_admin_user(request.user)
+    for post in page_obj:
+        is_own = request.user.is_authenticated and (post.user_id == request.user.id)
+        post_list.append({
+            'id': post.id,
+            'user': {
+                'id': post.user.id,
+                'username': post.user.username,
+            },
+            'content': post.content,
+            # Post.image is a CharField (URL/path)
+            'image': post.image if post.image else None,
+            'created_at': post.created_at.strftime("%Y/%m/%d %H:%M:%S"),
+            'can_edit': bool(is_own or is_admin),
+            'can_delete': bool(is_admin),
+        })
+
+    context = {
+        'posts': post_list,
+        'page_obj': page_obj,
+    }
+    return render(request, 'forum.html', context)
 
 
 def forum_new_post(request):
     """
     New post page.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/forum/new/')
 
-    return render(request, 'forum_new.html')
+    error = None
+    if request.method == 'POST':
+        content = request.POST.get('content', '').strip()
+        if not content:
+            error = u"Content cannot be empty."
+        else:
+            # 处理图片URL（从content中提取第一个图片URL）
+            image_url = request.POST.get('image_url', '').strip()
+            # 从content中提取第一个图片URL（如果存在）
+            import re
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content)
+            if img_match and not image_url:
+                image_url = img_match.group(1)
+            post = Post.objects.create(
+                user=request.user,
+                content=content,
+                image=image_url,
+            )
+            return redirect('/forum/')
+
+    context = {
+        'error': error,
+    }
+    return render(request, 'forum_new.html', context)
 
 
 def forum_edit_post(request, post_id):
@@ -268,15 +293,64 @@ def forum_edit_post(request, post_id):
     - Normal users can only edit their own posts
     - Admin can edit any posts
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/forum/%s/edit/' % post_id)
 
-    return render(request, 'forum_edit.html')
+    try:
+        post = Post.objects.select_related('user').get(id=post_id)
+    except Post.DoesNotExist:
+        return redirect('/forum/')
+
+    is_admin = _is_admin_user(request.user)
+    if (post.user_id != request.user.id) and (not is_admin):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+
+    error = None
+    if request.method == 'POST':
+        content = request.POST.get('content', '').strip()
+        if not content:
+            error = u"Content cannot be empty."
+        else:
+            image_url = request.POST.get('image_url', '').strip()
+            import re
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content)
+            if img_match and not image_url:
+                image_url = img_match.group(1)
+            post.content = content
+            if image_url:
+                post.image = image_url
+            post.save()
+            return redirect('/forum/')
+
+    context = {
+        'error': error,
+        'post': {
+            'id': post.id,
+            'content': post.content,
+            'image': post.image,
+            'author': post.user.username,
+        }
+    }
+    return render(request, 'forum_edit.html', context)
 
 
 def forum_delete_post(request, post_id):
     """
     Delete a forum post (admin only).
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not logged in'}, status=403)
+    if not _is_admin_user(request.user):
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request.'}, status=400)
 
+    try:
+        post = Post.objects.get(id=post_id)
+        post.delete()
+        return JsonResponse({'success': True})
+    except Post.DoesNotExist:
+        return JsonResponse({'error': 'Post does not exist.'}, status=404)
 
 
 def groups_page(request):
@@ -284,15 +358,11 @@ def groups_page(request):
     Study groups page: list groups the user has joined.
     """
 
-    return render(request, 'groups.html')
-
 
 def groups_detail_page(request, group_id):
     """
     Group detail page: show group info and messages.
     """
-
-    return render(request, 'groups_detail.html')
 
 
 def groups_create(request):
@@ -300,7 +370,6 @@ def groups_create(request):
     Create a new group.
     """
 
-    return render(request, 'groups_create.html')
 
 
 def groups_join(request):
@@ -309,12 +378,10 @@ def groups_join(request):
     """
 
 
-
 def groups_handle_join_request(request, req_id):
     """
     Approve or reject a join request (group creator/admin only).
     """
-
 
 
 def groups_invite(request, group_id):
@@ -328,7 +395,6 @@ def groups_respond_invite(request, invite_id):
     """
     Invitee accepts/declines an invitation.
     """
-
 
 
 def groups_kick_member(request, group_id, user_id):
@@ -357,13 +423,10 @@ def admin_dashboard(request):
     Admin dashboard home: stats, charts, and preview lists.
     """
 
-    return render(request, 'admin_dashboard.html')
 
 
 def admin_resource_edit(request, resource_id):
     """Admin: edit any resource."""
-
-    return render(request, 'admin_resource_edit.html')
 
 
 def admin_resource_json(request, resource_id):
@@ -389,12 +452,9 @@ def admin_user_delete(request, user_id):
 def admin_resource_create(request):
     """Admin: create new resource."""
 
-    return render(request, 'admin_resource_edit.html', )
-
 
 def _admin_list_params(request, model_name, default_per_page=20):
     """Common pagination for admin list views."""
-
 
 
 def admin_resources_list(request):
@@ -410,14 +470,12 @@ def admin_groups_list(request):
     """Admin: groups list with CRUD."""
 
 
-
 def admin_users_list(request):
     """Admin: users list with CRUD."""
 
 
 def admin_user_create(request):
     """Admin: create new user (modal or page submit)."""
-
 
 
 def admin_paths_list(request):
@@ -447,7 +505,6 @@ def admin_group_create(request):
 
 def admin_path_create(request):
     """Admin: create path (modal submit), redirect to admin paths list."""
-
 
 
 def admin_path_edit(request, path_id):
