@@ -68,6 +68,7 @@ def main_page(request):
     """
 
 
+
 def study_page(request):
     """
     Resource list page (port of the old Vue study.vue), with pagination.
@@ -95,6 +96,7 @@ def clear_all_records(request):
     """
 
 
+
 def _create_initial_learning_path(user, scholar_level):
     """
     Create an initial learning path based on the scholar level.
@@ -106,14 +108,68 @@ def signup_view(request):
     """
     Sign-up page: create Django User and initial learning path based on scholar level.
     """
+    error = None
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password1 = request.POST.get('password1', '')
+        password2 = request.POST.get('password2', '')
+        scholar_level = request.POST.get('scholar_level', '').strip()
+        nickname = request.POST.get('nickname', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        sex = request.POST.get('sex', '').strip()
 
+        if not username or not password1:
+            error = u"Username and password are required."
+        elif password1 != password2:
+            error = u"The two passwords do not match."
+        elif User.objects.filter(username=username).exists():
+            error = u"Username already exists."
+        elif not scholar_level:
+            error = u"Please select a scholar level."
+        else:
+            try:
+                scholar_level = int(scholar_level)
+                if scholar_level not in [1, 2, 3]:
+                    error = u"Invalid scholar level."
+                else:
+                    # 创建用户
+                    user = User.objects.create_user(username=username, password=password1)
+
+                    # 创建用户资料
+                    UserProfile.objects.create(
+                        user=user,
+                        scholar_level=scholar_level,
+                        nickname=nickname or username,
+                        phone=phone,
+                        sex=sex,
+                    )
+
+                    # 根据学者等级创建初始学习路径
+                    _create_initial_learning_path(user, scholar_level)
+
+                    login(request, user)
+                    return redirect('/')
+            except ValueError:
+                error = u"Invalid scholar level."
 
 
 def login_view(request):
     """
     Simple login page: username + password.
     """
-
+    error = None
+    if request.method == 'POST':
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            next_url = request.GET.get('next')
+            if not next_url or next_url == '/':
+                next_url = '/admin-dashboard/' if _is_admin_user(user) else '/'
+            return redirect(next_url)
+        else:
+            error = u"Incorrect username or password."
 
 
 def logout_view(request):
@@ -126,6 +182,40 @@ def profile_view(request):
     """
     User profile page: view and edit basic info.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/user/profile/')
+
+    profile, created = UserProfile.objects.get_or_create(user=request.user)
+
+    error = None
+    success = None
+
+    if request.method == 'POST':
+        nickname = request.POST.get('nickname', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        sex = request.POST.get('sex', '').strip()
+        scholar_level = request.POST.get('scholar_level', '').strip()
+
+        profile.nickname = nickname or request.user.username
+        profile.phone = phone
+        profile.sex = sex
+
+        if scholar_level:
+            try:
+                profile.scholar_level = int(scholar_level)
+            except ValueError:
+                error = u"Invalid scholar level."
+
+        if not error:
+            profile.save()
+            success = u"Profile updated successfully."
+
+    context = {
+        'profile': profile,
+        'error': error,
+        'success': success,
+    }
+    return render(request, 'profile.html', context)
 
 
 def study_detail_page(request):
@@ -133,6 +223,8 @@ def study_detail_page(request):
     Resource detail + simple quiz page.
     Currently uses static questions; can be moved to DB later.
     """
+
+
 
 def study_detail_record(request):
     """
@@ -147,6 +239,7 @@ def study_detail_legacy(request, rid):
     - 如果 <id> 是纯数字，则重定向到 /study_detail/?id=<id>
     - 否则保持原路径但加上 ?id=，方便后端统一处理
     """
+
 
 
 def path_page(request):
@@ -169,11 +262,13 @@ def path_create(request):
     """
 
 
+
 def path_edit(request, path_id):
     """
     Edit an existing learning path.
     Owner or admin can edit.
     """
+
 
 
 def path_delete(request, path_id):
@@ -287,6 +382,7 @@ def forum_new_post(request):
     return render(request, 'forum_new.html', context)
 
 
+
 def forum_edit_post(request, post_id):
     """
     Edit a forum post.
@@ -352,17 +448,18 @@ def forum_delete_post(request, post_id):
     except Post.DoesNotExist:
         return JsonResponse({'error': 'Post does not exist.'}, status=404)
 
-
 def groups_page(request):
     """
     Study groups page: list groups the user has joined.
     """
 
 
+
 def groups_detail_page(request, group_id):
     """
     Group detail page: show group info and messages.
     """
+
 
 
 def groups_create(request):
@@ -389,6 +486,7 @@ def groups_invite(request, group_id):
     Invite a user to a group (invitee must accept).
     Only group creator/admin can invite.
     """
+
 
 
 def groups_respond_invite(request, invite_id):
@@ -429,6 +527,7 @@ def admin_resource_edit(request, resource_id):
     """Admin: edit any resource."""
 
 
+
 def admin_resource_json(request, resource_id):
     """Admin: get one resource as JSON (for edit modal)."""
 
@@ -466,6 +565,7 @@ def admin_posts_list(request):
     """Admin: posts list with CRUD."""
 
 
+
 def admin_groups_list(request):
     """Admin: groups list with CRUD."""
 
@@ -492,10 +592,8 @@ def admin_post_edit(request, post_id):
     """Admin: update post (modal submit), redirect to admin posts list."""
 
 
-
 def admin_post_json(request, post_id):
     """Admin: get one post as JSON (for edit modal)."""
-
 
 
 def admin_group_create(request):
@@ -514,5 +612,4 @@ def admin_path_edit(request, path_id):
 
 def admin_path_json(request, path_id):
     """Admin: get one path as JSON (for edit modal)."""
-
 

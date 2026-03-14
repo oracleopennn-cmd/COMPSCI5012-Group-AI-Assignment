@@ -64,3 +64,69 @@
 </div>
 {% endblock %}
 
+{% extends "base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block body %}
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-side">
+            <h2>Join Lang Learning 🚀</h2>
+            <p>Create an account to save your progress, history and personalized recommendations.</p>
+        </div>
+        <div class="auth-form">
+            <h3>Sign Up</h3>
+            {% if error %}
+                <p class="auth-error">{{ error }}</p>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="auth-field">
+                    <label>Username</label>
+                    <input type="text" name="username" class="auth-input">
+                </div>
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" name="password1" class="auth-input">
+                </div>
+                <div class="auth-field">
+                    <label>Confirm Password</label>
+                    <input type="password" name="password2" class="auth-input">
+                </div>
+                <div class="auth-field">
+                    <label>Scholar Level *</label>
+                    <select name="scholar_level" class="auth-input" required>
+                        <option value="">Please select a scholar level</option>
+                        <option value="1">Beginner Scholar</option>
+                        <option value="2">Intermediate Scholar</option>
+                        <option value="3">Advanced Scholar</option>
+                    </select>
+                </div>
+                <div class="auth-field">
+                    <label>Nickname</label>
+                    <input type="text" name="nickname" class="auth-input">
+                </div>
+                <div class="auth-field">
+                    <label>Phone</label>
+                    <input type="text" name="phone" class="auth-input" maxlength="11">
+                </div>
+                <div class="auth-field">
+                    <label>Gender</label>
+                    <div class="auth-radio-group">
+                        <label><input type="radio" name="sex" value="M"> Male</label>
+                        <label><input type="radio" name="sex" value="F" checked> Female</label>
+                    </div>
+                </div>
+                <button type="submit" class="auth-button success">
+                    Sign Up
+                </button>
+                <p class="auth-footer-text">
+                    Already have an account? <a href="/user/signin/">Sign in</a>
+                </p>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
