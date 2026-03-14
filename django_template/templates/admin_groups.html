@@ -1,11 +1,113 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>admin_groups</title>
-</head>
-<body>
+{% extends "admin_base.html" %}
 
-</body>
-</html>
+{% block admin_title %}Groups{% endblock %}
+
+{% block admin_content %}
+<div class="admin-module-header">
+    <h2>Groups</h2>
+    <button type="button" class="admin-add-btn" onclick="openCreateGroup()">+ New Group</button>
+</div>
+{% if request.GET.error %}<div class="admin-inline-error">{% if request.GET.error == 'title' %}Title is required.{% elif request.GET.error == 'groupid' %}Group ID is required.{% elif request.GET.error == 'exists' %}Group ID already exists.{% else %}Please fix the form.{% endif %}</div>{% endif %}
+<div class="admin-table-card">
+    <table class="admin-data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Group ID</th>
+                <th>Title</th>
+                <th>Creator</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in items %}
+            <tr data-group-id="{{ g.id }}">
+                <td>{{ g.id }}</td>
+                <td>{{ g.groupid }}</td>
+                <td>{{ g.title|truncatechars:30 }}</td>
+                <td>{{ g.creator.username }}</td>
+                <td>
+                    <a href="{% url 'groups_detail' g.id %}" class="admin-btn admin-btn-edit">View</a>
+                    <button type="button" class="admin-btn admin-btn-del" onclick="delGroup({{ g.id }})">Delete</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">No data</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page_obj.has_other_pages %}
+    <div class="admin-pagination">
+        {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">← Previous</a>{% endif %}
+        <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block admin_modals %}
+<!-- Create group modal -->
+<div id="groupCreateModal" class="modal-overlay admin-modal-overlay">
+    <div class="modal-dialog admin-create-dialog">
+        <div class="dialog-header">
+            <span class="dialog-title">New Group</span>
+            <button type="button" class="dialog-close" onclick="closeCreateGroup()">×</button>
+        </div>
+        <div class="dialog-body">
+            <form id="groupCreateForm" method="post" action="{% url 'admin_group_create' %}">
+                {% csrf_token %}
+                <div class="admin-form-field">
+                    <label>Title *</label>
+                    <input type="text" name="title" required>
+                </div>
+                <div class="admin-form-field">
+                    <label>Group ID *</label>
+                    <input type="text" name="groupid" required placeholder="e.g. french-2024">
+                </div>
+                <div class="admin-form-field">
+                    <label>Description</label>
+                    <textarea name="description" rows="3"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="dialog-btn dialog-btn-default" onclick="closeCreateGroup()">Cancel</button>
+            <button type="button" class="dialog-btn dialog-btn-primary" onclick="document.getElementById('groupCreateForm').submit()">Create</button>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+<script>
+function openCreateGroup(){var m=document.getElementById('groupCreateModal');if(m)m.classList.add('modal-show');}
+function closeCreateGroup(){var m=document.getElementById('groupCreateModal');if(m)m.classList.remove('modal-show');}
+document.addEventListener('DOMContentLoaded',function(){var m=document.getElementById('groupCreateModal');if(m)m.addEventListener('click',function(e){if(e.target===m)closeCreateGroup();});});
+function gC(n){var v=document.cookie.match('(^|;) ?'+n+'=([^;]*)(;|$)');return v?v[2]:null;}
+function gT(){var t=gC('csrftoken');if(!t){var e=document.querySelector('[name=csrfmiddlewaretoken]');if(e)t=e.value;}return t;}
+function delGroup(id){showConfirm('Delete this group?',function(){
+    var fd=new FormData();fd.append('csrfmiddlewaretoken',gT());
+    fetch('/admin-dashboard/group/'+id+'/delete/',{method:'POST',body:fd,credentials:'same-origin'})
+    .then(function(r){if(r.ok){var row=document.querySelector('[data-group-id="'+id+'"]');if(row)row.remove();showModal('Deleted.');}else r.json().then(function(d){showModal(d.error||'Failed','error');});})
+    .catch(function(e){showModal('Error: '+e,'error');});});}
+</script>
+<style>
+.admin-module-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.admin-module-header h2{margin:0;font-size:20px;}
+.admin-add-btn{background:#6366f1;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:14px;}
+.admin-inline-error{background:#fef2f2;color:#b91c1c;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;}
+.admin-create-dialog{max-width:480px;width:100%;}
+.admin-form-field{margin-bottom:12px;}
+.admin-form-field label{display:block;margin-bottom:4px;font-size:13px;font-weight:500;}
+.admin-form-field input,.admin-form-field textarea{width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;}
+.admin-table-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.admin-data-table{width:100%;border-collapse:collapse;}
+.admin-data-table th,.admin-data-table td{padding:12px;text-align:left;border-bottom:1px solid #e5e7eb;}
+.admin-data-table th{background:#f8fafc;font-weight:600;font-size:13px;color:#64748b;}
+.admin-btn{display:inline-block;padding:4px 12px;border-radius:6px;font-size:13px;text-decoration:none;margin-right:6px;border:none;cursor:pointer;}
+.admin-btn-edit{background:#3b82f6;color:#fff;}
+.admin-btn-del{background:#ef4444;color:#fff;}
+.admin-pagination{margin-top:16px;display:flex;gap:16px;align-items:center;font-size:14px;}
+.admin-pagination a{color:#6366f1;text-decoration:none;}
+</style>
+{% endblock %}

@@ -1,11 +1,193 @@
-<!doctype html>
+<!DOCTYPE html>
+{% load static %}
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>base</title>
+    <title>{% block title %}Language Learning Platform{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body>
+<div id="toast-container"></div>
+<script>
+// A unified pop-up component, with a style referenced from the old system (small card + top title + right-side button).
+function createDialog(options) {
+    var title = options.title || 'Tip';
+    var message = options.message || '';
+    var showCancel = options.showCancel || false;
+    var onOk = options.onOk;
+    var onCancel = options.onCancel;
+    var overlayClass = options.overlayClass || 'modal-overlay';
+    var dialogClass = options.dialogClass || 'modal-dialog';
 
+    var overlay = document.createElement('div');
+    overlay.className = overlayClass;
+
+    var dialog = document.createElement('div');
+    dialog.className = dialogClass;
+    dialog.innerHTML =
+        '<div class="dialog-header">' +
+            '<span class="dialog-title">' + title + '</span>' +
+            '<button class="dialog-close">×</button>' +
+        '</div>' +
+        '<div class="dialog-body">' +
+            '<p class="dialog-message">' + message + '</p>' +
+        '</div>' +
+        '<div class="dialog-footer">' +
+            (showCancel ? '<button class="dialog-btn dialog-btn-default dialog-btn-cancel">Cancel</button>' : '') +
+            '<button class="dialog-btn dialog-btn-primary dialog-btn-ok">OK</button>' +
+        '</div>';
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // 显示动画
+    setTimeout(function () {
+        overlay.classList.add('dialog-show');
+    }, 10);
+
+    function close() {
+        overlay.classList.remove('dialog-show');
+        setTimeout(function () {
+            overlay.remove();
+        }, 200);
+    }
+
+    var btnOk = dialog.querySelector('.dialog-btn-ok');
+    var btnCancel = dialog.querySelector('.dialog-btn-cancel');
+    var btnClose = dialog.querySelector('.dialog-close');
+
+    btnOk.addEventListener('click', function () {
+        close();
+        if (onOk) onOk();
+    });
+
+    if (btnCancel) {
+        btnCancel.addEventListener('click', function () {
+            close();
+            if (onCancel) onCancel();
+        });
+    }
+
+    btnClose.addEventListener('click', function () {
+        close();
+        if (onCancel) onCancel();
+    });
+
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) {
+            close();
+            if (onCancel) onCancel();
+        }
+    });
+}
+
+// 信息弹窗：只有一个 OK 按钮
+function showModal(message, type, onClose) {
+    createDialog({
+        title: 'Tip',
+        message: message,
+        showCancel: false,
+        onOk: onClose,
+        overlayClass: 'modal-overlay',
+        dialogClass: 'modal-dialog'
+    });
+}
+
+// 确认弹窗：Cancel + OK
+function showConfirm(message, onConfirm, onCancel) {
+    createDialog({
+        title: 'Tip',
+        message: message,
+        showCancel: true,
+        onOk: onConfirm,
+        onCancel: onCancel,
+        overlayClass: 'confirm-overlay',
+        dialogClass: 'confirm-dialog'
+    });
+}
+</script>
+<header class="top-nav">
+    <div class="top-nav-inner">
+        <div class="logo-title">
+            {% if request.user.is_authenticated %}
+                <div class="logo-avatar">
+                    <span class="logo-avatar-initial">
+                        {{ request.user.username|first|upper }}
+                    </span>
+                </div>
+            {% else %}
+                <span class="logo-dot"></span>
+            {% endif %}
+            <a href="/" class="site-title">Lang Learning</a>
+        </div>
+        <nav class="nav-links">
+            <a href="/" class="nav-link{% if request.path == '/' or request.path == '/main/' %} active{% endif %}">Recommended</a>
+            <a href="/study/" class="nav-link{% if request.path == '/study/' %} active{% endif %}">Learn</a>
+            <a href="/record/" class="nav-link{% if request.path == '/record/' %} active{% endif %}">History</a>
+            <a href="/path/" class="nav-link{% if request.path == '/path/' %} active{% endif %}">Learning Path</a>
+            <a href="/groups/" class="nav-link{% if request.path == '/groups/' or '/groups/' in request.path %} active{% endif %}">Groups</a>
+            <a href="/forum/" class="nav-link{% if request.path == '/forum/' or '/forum/' in request.path %} active{% endif %}">Forum</a>
+            {% if is_admin %}
+            <a href="/admin-dashboard/" class="nav-link{% if '/admin-dashboard/' in request.path %} active{% endif %}">Admin</a>
+            {% endif %}
+        </nav>
+        <div class="nav-user">
+            {% if request.user.is_authenticated %}
+                <div class="nav-avatar-wrapper">
+                    <div class="nav-avatar-trigger">
+                        <div class="nav-avatar-circle nav-avatar-image">
+                            <span class="nav-avatar-initial">
+                                {{ request.user.username|first|upper }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="nav-avatar-menu">
+                        <a href="/user/profile/" class="nav-avatar-menu-item">
+                            <span class="nav-avatar-menu-icon">👤</span>
+                            <span>Profile</span>
+                        </a>
+                        <a href="#" class="nav-avatar-menu-item nav-avatar-menu-item-disabled">
+                            <span class="nav-avatar-menu-icon">🔔</span>
+                            <span>Notes</span>
+                        </a>
+                        <a href="/user/logout/" class="nav-avatar-menu-item">
+                            <span class="nav-avatar-menu-icon">⏻</span>
+                            <span>Logout</span>
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <a href="/user/signup/" class="nav-button">Register</a>
+                <a href="/user/signin/" class="nav-avatar-circle"></a>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+{% block body %}
+{% endblock %}
+
+<script>
+// 顶部头像下拉菜单
+(function () {
+    var trigger = document.querySelector('.nav-avatar-trigger');
+    var menu = document.querySelector('.nav-avatar-menu');
+    if (!trigger || !menu) return;
+
+    function closeMenu() {
+        menu.classList.remove('nav-avatar-menu-open');
+    }
+
+    trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        menu.classList.toggle('nav-avatar-menu-open');
+    });
+
+    document.addEventListener('click', function () {
+        closeMenu();
+    });
+})();
+</script>
 </body>
 </html>
+

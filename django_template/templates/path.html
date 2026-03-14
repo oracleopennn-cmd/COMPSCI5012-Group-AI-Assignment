@@ -1,11 +1,108 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>path</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}Learning Paths{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="path-header">
+        <h2 class="path-page-title">Learning Path Planning</h2>
+        <a href="{% url 'path_create' %}" class="path-create-btn">+ Create Learning Path</a>
+    </div>
+
+    {% if paths %}
+        <div class="path-grid">
+            {% for p in paths %}
+                <div class="path-card card">
+                    <div class="path-card-header">
+                        <h3 class="path-card-title">{{ p.title }}</h3>
+                        <div class="path-card-actions">
+                            <a href="{% url 'path_detail' p.id %}" class="path-action-link">View</a>
+                            <a href="{% url 'path_edit' p.id %}" class="path-action-link">Edit</a>
+                            <button class="path-action-link path-delete-btn" onclick="deletePath({{ p.id }})">Delete</button>
+                        </div>
+                    </div>
+                    {% if p.description %}
+                        <p class="path-card-desc">{{ p.description }}</p>
+                    {% endif %}
+                    <div class="path-card-meta">
+                        {% if p.language %}
+                            <span class="path-tag">{{ p.language }}</span>
+                        {% endif %}
+                        {% if p.target_level %}
+                            <span class="path-tag">{{ p.target_level }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="path-card-progress">
+                        <div class="path-progress-bar">
+                            <div class="path-progress-fill" style="width: {{ p.progress }}%"></div>
+                        </div>
+                        <div class="path-progress-text">
+                            {{ p.completed_items }} / {{ p.total_items }} completed ({{ p.progress }}%)
+                        </div>
+                    </div>
+                    <div class="path-card-footer">
+                        <span class="path-date">Created on {{ p.created_at }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="path-empty">
+            <p>You haven't created any learning paths yet.</p>
+            <a href="{% url 'path_create' %}" class="path-create-btn">Create your first learning path</a>
+        </div>
+    {% endif %}
+</div>
+
+{% csrf_token %}
+<script>
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function getCsrfToken() {
+    var token = getCookie('csrftoken');
+    if (!token) {
+        var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfInput) {
+            token = csrfInput.value;
+        }
+    }
+    return token;
+}
+
+function deletePath(pathId) {
+    showConfirm('Delete this learning path?', function() {
+    fetch('/path/' + pathId + '/delete/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCsrfToken(),
+            'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (response.ok) {
+            location.reload();
+        } else {
+            showModal('Delete failed. Please try again.', 'error');
+        }
+    })
+    .catch(function(error) {
+        showModal('Delete failed: ' + error, 'error');
+    });
+    });
+}
+</script>
+{% endblock %}

@@ -1,11 +1,118 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>main</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>l
+{% block title %}Home - Language Learning Platform{% endblock %}
+
+{% block body %}
+<div class="container">
+    <!-- User Info -->
+    <div class="card user-card">
+        <div class="user-info">
+            <div class="user-avatar">
+                <div class="avatar-circle nav-avatar-image">
+                    <span class="avatar-initial">
+                        {{ user.nickname|first|upper }}
+                    </span>
+                </div>
+            </div>
+            <div class="user-details">
+                <h2>{{ user.nickname }}</h2>
+                <div class="user-meta">
+                    <span>Gender: {% if user.sex == 1 %}Male{% elif user.sex == 0 %}Female{% else %}Unknown{% endif %}</span>
+                    {% if user.remark.age %}
+                        <span>Age: {{ user.remark.age }}</span>
+                    {% endif %}
+                    {% if user.remark.national %}
+                        <span>Country: {{ user.remark.national }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- Recent Resources -->
+        <div class="recommend-section">
+            <div class="section-title-row">
+                <h3 class="section-title">Recent</h3>
+            </div>
+            <div class="home-grid">
+                {% for v in recommend_videos %}
+                    <a class="card resource-card" href="{% url 'study_detail' %}?id={{ v.id }}" style="text-decoration:none;color:inherit;">
+                        <div class="resource-thumb-wrapper{% if not v.image %} thumb-failed{% endif %}">
+                            {% if v.image %}
+                                {% if 'http' in v.image %}
+                                    <img class="resource-thumb" src="{{ v.image }}" alt="{{ v.title }}"
+                                         onerror="this.style.display='none'; this.parentNode.classList.add('thumb-failed');">
+                                {% else %}
+                                    <img class="resource-thumb" src="/public/images/{{ v.image }}" alt="{{ v.title }}"
+                                         onerror="this.style.display='none'; this.parentNode.classList.add('thumb-failed');">
+                                {% endif %}
+                            {% endif %}
+                        </div>
+
+                        <div class="resource-body">
+                            <div class="resource-title">{{ v.title }}</div>
+                            <div class="resource-tags">
+                                <span class="pill">{{ v.ltype }}</span>
+                                <span class="pill pill-difficulty">{{ v.difficulty_label }}</span>
+                            </div>
+                            <div class="resource-meta">
+                                <span>@{{ v.author }}</span>
+                                <span>{{ v.time }}</span>
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Study Records -->
+            <div class="card">
+                <div class="side-header">
+                    <div class="side-title">Recent</div>
+                </div>
+                {% for r in study_records %}
+                    <a class="side-recent-item" href="{% url 'study_detail' %}?id={{ r.id }}">
+                        {% if r.image %}
+                            {% if 'http' in r.image %}
+                                <img class="side-recent-thumb" src="{{ r.image }}" alt="{{ r.title }}">
+                            {% else %}
+                                <img class="side-recent-thumb" src="/public/images/{{ r.image }}" alt="{{ r.title }}">
+                            {% endif %}
+                        {% else %}
+                            <div class="side-recent-thumb"></div>
+                        {% endif %}
+                        <div class="side-recent-info">
+                            <div class="side-recent-title">{{ r.title }}</div>
+                            <div class="side-recent-meta">Studied {{ r.studied_minutes }} Min on {{ r.date }}</div>
+                        </div>
+                    </a>
+                {% empty %}
+                    <p>No study records yet.</p>
+                {% endfor %}
+            </div>
+
+            <!-- Similar Users -->
+            <div class="card">
+                <div class="side-header">
+                    <div class="side-title">Similar</div>
+                </div>
+                {% for u in similar_users %}
+                    <div class="side-user-item">
+                        <div class="avatar-small"></div>
+                        <div class="user-text">
+                            <div class="side-user-name">{{ u.nickname }}</div>
+                            <div class="side-user-role">{{ u.role }}</div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p>No similar users yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
