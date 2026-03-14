@@ -246,21 +246,115 @@ def path_page(request):
     """
     Learning path overview: list all paths for the current user.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/path/')
 
+    paths = LearningPath.objects.filter(user=request.user).prefetch_related('items__resource')
+
+    # Calculate progress for each path
+    path_list = []
+    for path in paths:
+        items = path.items.all()
+        total_count = items.count()
+        completed_count = items.filter(is_completed=True).count()
+        progress = int((completed_count * 100.0 / total_count) if total_count > 0 else 0)
+
+        path_list.append({
+            'id': path.id,
+            'title': path.title,
+            'description': path.description,
+            'language': path.language,
+            'target_level': path.target_level,
+            'total_items': total_count,
+            'completed_items': completed_count,
+            'progress': progress,
+            'created_at': path.created_at.strftime("%Y/%m/%d"),
+            'updated_at': path.updated_at.strftime("%Y/%m/%d"),
+        })
+
+    context = {
+        'paths': path_list,
+    }
+    return render(request, 'path.html', context)
 
 
 def path_detail_page(request, path_id):
     """
     Learning path detail: show and manage items in a path.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/path/%s/' % path_id)
 
+    try:
+        path = LearningPath.objects.prefetch_related('items__resource').get(id=path_id, user=request.user)
+    except LearningPath.DoesNotExist:
+        return redirect('/path/')
+
+    items = path.items.all()
+    total_count = items.count()
+    completed_count = items.filter(is_completed=True).count()
+    progress = int((completed_count * 100.0 / total_count) if total_count > 0 else 0)
+
+    item_list = []
+    for item in items:
+        item_list.append({
+            'id': item.id,
+            'resource_id': item.resource.id,
+            'title': _clean_str(item.resource.title),
+            'desc': _clean_str(item.resource.desc),
+            'image': _clean_image(item.resource.image),
+            'ltype': _clean_str(item.resource.ltype),
+            'utype': _clean_str(item.resource.utype),
+            'difficulty': item.resource.difficulty,
+            'author': _clean_str(item.resource.author),
+            'order': item.order,
+            'is_completed': item.is_completed,
+            'completed_at': item.completed_at.strftime("%Y/%m/%d %H:%M") if item.completed_at else None,
+        })
+
+    context = {
+        'path': {
+            'id': path.id,
+            'title': path.title,
+            'description': path.description,
+            'language': path.language,
+            'target_level': path.target_level,
+            'total_items': total_count,
+            'completed_items': completed_count,
+            'progress': progress,
+        },
+        'items': item_list,
+    }
+    return render(request, 'path_detail.html', context)
 
 
 def path_create(request):
     """
     Create a new learning path.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/?next=/path/create/')
 
+    error = None
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        language = request.POST.get('language', '').strip()
+        target_level = request.POST.get('target_level', '').strip()
+
+        if not title:
+            error = u"Title is required."
+        else:
+            path = LearningPath.objects.create(
+                user=request.user,
+                title=title,
+                description=description,
+                language=language,
+                target_level=target_level,
+            )
+            return redirect('/path/%s/' % path.id)
+
+    return render(request, 'path_create.html', {'error': error})
 
 
 def path_edit(request, path_id):
@@ -268,7 +362,38 @@ def path_edit(request, path_id):
     Edit an existing learning path.
     Owner or admin can edit.
     """
+    if not request.user.is_authenticated:
+        return redirect('/user/signin/')
 
+    try:
+        path = LearningPath.objects.get(id=path_id)
+    except LearningPath.DoesNotExist:
+        return redirect('/path/')
+    if path.user_id != request.user.id and not _is_admin_user(request.user):
+        return redirect('/path/')
+
+    error = None
+    if request.method == 'POST':
+        title = request.POST.get('title', '').strip()
+        description = request.POST.get('description', '').strip()
+        language = request.POST.get('language', '').strip()
+        target_level = request.POST.get('target_level', '').strip()
+
+        if not title:
+            error = u"Title is required."
+        else:
+            path.title = title
+            path.description = description
+            path.language = language
+            path.target_level = target_level
+            path.save()
+            return redirect('/path/%s/' % path.id)
+
+    context = {
+        'path': path,
+        'error': error,
+    }
+    return render(request, 'path_edit.html', context)
 
 
 def path_delete(request, path_id):
@@ -276,25 +401,92 @@ def path_delete(request, path_id):
     Delete a learning path.
     Owner or admin can delete.
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not logged in'}, status=403)
 
+    try:
+        path = LearningPath.objects.get(id=path_id)
+        if path.user_id != request.user.id and not _is_admin_user(request.user):
+            return JsonResponse({'error': 'Forbidden'}, status=403)
+        path.delete()
+        return JsonResponse({'success': True})
+    except LearningPath.DoesNotExist:
+        return JsonResponse({'error': 'Path does not exist.'}, status=404)
 
 def path_add_resource(request, path_id):
     """
     Add a resource to a learning path.
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not logged in'}, status=403)
 
+    try:
+        path = LearningPath.objects.get(id=path_id, user=request.user)
+    except LearningPath.DoesNotExist:
+        return JsonResponse({'error': 'Path does not exist.'}, status=404)
+
+    if request.method == 'POST':
+        resource_id = request.POST.get('resource_id')
+        if not resource_id:
+            return JsonResponse({'error': 'Resource ID is required.'}, status=400)
+
+        try:
+            resource = Resource.objects.get(id=resource_id)
+            # Check if already in path
+            if LearningPathItem.objects.filter(path=path, resource=resource).exists():
+                return JsonResponse({'error': 'This resource is already in the path.'}, status=400)
+
+            # Get current max order
+            max_order_obj = LearningPathItem.objects.filter(path=path).aggregate(Max('order'))
+            max_order = max_order_obj['order__max'] or 0
+
+            LearningPathItem.objects.create(
+                path=path,
+                resource=resource,
+                order=max_order + 1,
+            )
+            return JsonResponse({'success': True})
+        except Resource.DoesNotExist:
+            return JsonResponse({'error': 'Resource does not exist.'}, status=404)
+
+    return JsonResponse({'error': 'Invalid request.'}, status=400)
 
 def path_remove_resource(request, path_id, item_id):
     """
     Remove a resource item from a learning path.
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not logged in'}, status=403)
 
+    try:
+        path = LearningPath.objects.get(id=path_id, user=request.user)
+        item = LearningPathItem.objects.get(id=item_id, path=path)
+        item.delete()
+        return JsonResponse({'success': True})
+    except (LearningPath.DoesNotExist, LearningPathItem.DoesNotExist):
+        return JsonResponse({'error': 'Record does not exist.'}, status=404)
 
 
 def path_toggle_complete(request, path_id, item_id):
     """
     Toggle completion status for a learning path item.
     """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Not logged in'}, status=403)
+
+    try:
+        path = LearningPath.objects.get(id=path_id, user=request.user)
+        item = LearningPathItem.objects.get(id=item_id, path=path)
+        item.is_completed = not item.is_completed
+        if item.is_completed:
+            from django.utils import timezone
+            item.completed_at = timezone.now()
+        else:
+            item.completed_at = None
+        item.save()
+        return JsonResponse({'success': True, 'is_completed': item.is_completed})
+    except (LearningPath.DoesNotExist, LearningPathItem.DoesNotExist):
+        return JsonResponse({'error': 'Record does not exist.'}, status=404)
 
 def _is_admin_user(user):
     """
@@ -515,7 +707,6 @@ def _admin_required(view_func):
     """Decorator: require admin user, redirect to home if not."""
 
 
-
 def admin_dashboard(request):
     """
     Admin dashboard home: stats, charts, and preview lists.
@@ -530,7 +721,6 @@ def admin_resource_edit(request, resource_id):
 
 def admin_resource_json(request, resource_id):
     """Admin: get one resource as JSON (for edit modal)."""
-
 
 
 def admin_resource_delete(request, resource_id):
@@ -550,6 +740,7 @@ def admin_user_delete(request, user_id):
 
 def admin_resource_create(request):
     """Admin: create new resource."""
+
 
 
 def _admin_list_params(request, model_name, default_per_page=20):

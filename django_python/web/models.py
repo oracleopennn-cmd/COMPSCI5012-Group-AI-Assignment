@@ -29,6 +29,7 @@ class StudyRecord(models.Model):
     """
     Study record table (port of the old 'record' structure).
     """
+
     user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     resource = models.ForeignKey(Resource, related_name='records', on_delete=models.CASCADE)
     time = models.DateTimeField(help_text=u"Study time")
@@ -82,6 +83,7 @@ class Post(models.Model):
     """
     Forum post table.
     """
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, help_text=u"Author")
     content = models.TextField(help_text=u"Post content (HTML allowed)")
     image = models.CharField(max_length=255, blank=True, help_text=u"Post image URL or path")
