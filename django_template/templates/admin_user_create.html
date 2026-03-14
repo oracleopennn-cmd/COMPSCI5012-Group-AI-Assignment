@@ -9,3 +9,46 @@
 
 </body>
 </html>
+{% extends "admin_base.html" %}
+
+{% block admin_title %}New User{% endblock %}
+
+{% block admin_content %}
+<div class="admin-form-header">
+    <h2>New User</h2>
+    <a href="/admin-dashboard/users/">← Back to list</a>
+</div>
+<div class="admin-form-card">
+    {% if error %}<div class="admin-form-error">{{ error }}</div>{% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="admin-form-field">
+            <label>Username *</label>
+            <input type="text" name="username" required>
+        </div>
+        <div class="admin-form-field">
+            <label>Password *</label>
+            <input type="password" name="password" required>
+        </div>
+        <div class="admin-form-field">
+            <label>Email</label>
+            <input type="email" name="email">
+        </div>
+        <div class="admin-form-actions">
+            <button type="submit" class="admin-btn-submit">Create</button>
+            <a href="/admin-dashboard/users/" class="admin-btn-cancel">Cancel</a>
+        </div>
+    </form>
+</div>
+<style>
+.admin-form-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.admin-form-card{background:#fff;border-radius:12px;padding:24px;max-width:400px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.admin-form-error{color:#ef4444;margin-bottom:16px;}
+.admin-form-field{margin-bottom:16px;}
+.admin-form-field label{display:block;margin-bottom:6px;font-size:14px;font-weight:500;}
+.admin-form-field input{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;}
+.admin-form-actions{margin-top:20px;display:flex;gap:12px;}
+.admin-btn-submit{background:#6366f1;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;}
+.admin-btn-cancel{color:#64748b;text-decoration:none;padding:10px 0;}
+</style>
+{% endblock %}

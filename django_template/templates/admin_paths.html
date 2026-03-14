@@ -9,3 +9,174 @@
 
 </body>
 </html>
+{% extends "admin_base.html" %}
+
+{% block admin_title %}Learning Paths{% endblock %}
+
+{% block admin_content %}
+<div class="admin-module-header">
+    <h2>Learning Paths</h2>
+    <button type="button" class="admin-add-btn" onclick="openCreatePath()">+ New Path</button>
+</div>
+{% if request.GET.error %}<div class="admin-inline-error">Title is required.</div>{% endif %}
+<div class="admin-table-card">
+    <table class="admin-data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Owner</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in items %}
+            <tr data-path-id="{{ p.id }}">
+                <td>{{ p.id }}</td>
+                <td>{{ p.title|truncatechars:50 }}</td>
+                <td>{{ p.user.username }}</td>
+                <td>
+                    <button type="button" class="admin-btn admin-btn-edit" onclick="openEditPath({{ p.id }})">Edit</button>
+                    <button type="button" class="admin-btn admin-btn-del" onclick="delPath({{ p.id }})">Delete</button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4">No data</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if page_obj.has_other_pages %}
+    <div class="admin-pagination">
+        {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">← Previous</a>{% endif %}
+        <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Next →</a>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block admin_modals %}
+<!-- Create path modal -->
+<div id="pathCreateModal" class="modal-overlay admin-modal-overlay">
+    <div class="modal-dialog admin-create-dialog">
+        <div class="dialog-header">
+            <span class="dialog-title">New Learning Path</span>
+            <button type="button" class="dialog-close" onclick="closeCreatePath()">×</button>
+        </div>
+        <div class="dialog-body">
+            <form id="pathCreateForm" method="post" action="{% url 'admin_path_create' %}">
+                {% csrf_token %}
+                <div class="admin-form-field">
+                    <label>Title *</label>
+                    <input type="text" name="title" required>
+                </div>
+                <div class="admin-form-field">
+                    <label>Description</label>
+                    <textarea name="description" rows="3"></textarea>
+                </div>
+                <div class="admin-form-row">
+                    <div class="admin-form-field">
+                        <label>Language</label>
+                        <input type="text" name="language">
+                    </div>
+                    <div class="admin-form-field">
+                        <label>Target Level</label>
+                        <input type="text" name="target_level" placeholder="e.g. A1, B2">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="dialog-btn dialog-btn-default" onclick="closeCreatePath()">Cancel</button>
+            <button type="button" class="dialog-btn dialog-btn-primary" onclick="document.getElementById('pathCreateForm').submit()">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit path modal -->
+<div id="pathEditModal" class="modal-overlay admin-modal-overlay">
+    <div class="modal-dialog admin-create-dialog">
+        <div class="dialog-header">
+            <span class="dialog-title">Edit Learning Path</span>
+            <button type="button" class="dialog-close" onclick="closeEditPath()">×</button>
+        </div>
+        <div class="dialog-body">
+            <form id="pathEditForm" method="post" action="">
+                {% csrf_token %}
+                <div class="admin-form-field">
+                    <label>Title *</label>
+                    <input type="text" name="title" id="editPathTitle" required>
+                </div>
+                <div class="admin-form-field">
+                    <label>Description</label>
+                    <textarea name="description" id="editPathDesc" rows="3"></textarea>
+                </div>
+                <div class="admin-form-row">
+                    <div class="admin-form-field">
+                        <label>Language</label>
+                        <input type="text" name="language" id="editPathLanguage">
+                    </div>
+                    <div class="admin-form-field">
+                        <label>Target Level</label>
+                        <input type="text" name="target_level" id="editPathTargetLevel" placeholder="e.g. A1, B2">
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="dialog-footer">
+            <button type="button" class="dialog-btn dialog-btn-default" onclick="closeEditPath()">Cancel</button>
+            <button type="button" class="dialog-btn dialog-btn-primary" onclick="document.getElementById('pathEditForm').submit()">Save</button>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+<script>
+function gC(n){var v=document.cookie.match('(^|;) ?'+n+'=([^;]*)(;|$)');return v?v[2]:null;}
+function gT(){var t=gC('csrftoken');if(!t){var e=document.querySelector('[name=csrfmiddlewaretoken]');if(e)t=e.value;}return t;}
+function delPath(id){showConfirm('Delete this learning path?',function(){
+    fetch('/path/'+id+'/delete/',{method:'POST',headers:{'X-CSRFToken':gT(),'Content-Type':'application/json'},credentials:'same-origin'})
+    .then(function(r){if(r.ok){var row=document.querySelector('[data-path-id="'+id+'"]');if(row)row.remove();showModal('Deleted.');}else r.json().then(function(d){showModal(d.error||'Failed','error');});})
+    .catch(function(e){showModal('Error: '+e,'error');});});}
+function openCreatePath(){var m=document.getElementById('pathCreateModal');if(m)m.classList.add('modal-show');}
+function closeCreatePath(){var m=document.getElementById('pathCreateModal');if(m)m.classList.remove('modal-show');}
+function openEditPath(id){
+    fetch('/admin-dashboard/path/'+id+'/json/').then(function(r){if(!r.ok){showModal('Failed to load path','error');return;}return r.json();})
+    .then(function(d){if(!d)return;
+        document.getElementById('pathEditForm').action='/admin-dashboard/path/'+d.id+'/edit/';
+        document.getElementById('editPathTitle').value=d.title||'';
+        document.getElementById('editPathDesc').value=d.description||'';
+        document.getElementById('editPathLanguage').value=d.language||'';
+        document.getElementById('editPathTargetLevel').value=d.target_level||'';
+        var m=document.getElementById('pathEditModal');if(m)m.classList.add('modal-show');
+    }).catch(function(e){showModal('Error: '+e,'error');});
+}
+function closeEditPath(){var m=document.getElementById('pathEditModal');if(m)m.classList.remove('modal-show');}
+document.addEventListener('DOMContentLoaded',function(){
+    var cm=document.getElementById('pathCreateModal');var em=document.getElementById('pathEditModal');
+    if(cm)cm.addEventListener('click',function(e){if(e.target===cm)closeCreatePath();});
+    if(em)em.addEventListener('click',function(e){if(e.target===em)closeEditPath();});
+});
+</script>
+<style>
+.admin-module-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.admin-module-header h2{margin:0;font-size:20px;}
+.admin-add-btn{background:#6366f1;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:14px;}
+.admin-inline-error{background:#fef2f2;color:#b91c1c;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;}
+.admin-create-dialog{max-width:520px;width:100%;}
+.admin-form-field{margin-bottom:12px;}
+.admin-form-field label{display:block;margin-bottom:4px;font-size:13px;font-weight:500;}
+.admin-form-field input,.admin-form-field textarea{width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:13px;}
+.admin-form-row{display:flex;gap:12px;}
+.admin-form-row .admin-form-field{flex:1;}
+.admin-table-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+.admin-data-table{width:100%;border-collapse:collapse;}
+.admin-data-table th,.admin-data-table td{padding:12px;text-align:left;border-bottom:1px solid #e5e7eb;}
+.admin-data-table th{background:#f8fafc;font-weight:600;font-size:13px;color:#64748b;}
+.admin-btn{display:inline-block;padding:4px 12px;border-radius:6px;font-size:13px;text-decoration:none;margin-right:6px;border:none;cursor:pointer;}
+.admin-btn-edit{background:#3b82f6;color:#fff;}
+.admin-btn-del{background:#ef4444;color:#fff;}
+.admin-pagination{margin-top:16px;display:flex;gap:16px;align-items:center;font-size:14px;}
+.admin-pagination a{color:#6366f1;text-decoration:none;}
+</style>
+{% endblock %}
