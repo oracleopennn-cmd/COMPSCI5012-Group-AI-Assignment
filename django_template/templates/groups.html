@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Study Groups{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="groups-header">
+        <h2 class="groups-page-title">Study Groups</h2>
+        <a href="{% url 'groups_create' %}" class="groups-create-btn">+ Create Group</a>
+    </div>
+
+    <div class="groups-join-section card">
+        <h3>Request to Join Group</h3>
+        <form id="joinGroupForm" class="groups-join-form">
+            {% csrf_token %}
+            <input type="text" id="joinGroupId" placeholder="Enter group ID" class="groups-join-input">
+            <button type="submit" class="groups-join-btn">Request</button>
+        </form>
+        {% if my_pending_requests %}
+            <div style="margin-top:10px; font-size: 13px;">
+                <strong>My pending requests:</strong>
+                {% for r in my_pending_requests %}
+                    <div>Group {{ r.group.title }} (#{{ r.group.groupid }}) at {{ r.created_at }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    {% if pending_invites %}
+        <div class="groups-join-section card">
+            <h3>Pending Invites</h3>
+            {% for inv in pending_invites %}
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0;">
+                    <div>
+                        <strong>{{ inv.group.title }}</strong> (#{{ inv.group.groupid }})
+                        <div style="font-size:12px; opacity:0.8;">Invited by {{ inv.inviter }} · {{ inv.created_at }}</div>
+                    </div>
+                    <div>
+                        <button class="groups-join-btn" onclick="respondInvite({{ inv.id }}, 'accept')">Accept</button>
+                        <button class="groups-join-btn" style="background:#666;" onclick="respondInvite({{ inv.id }}, 'decline')">Decline</button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if pending_join_requests %}
+        <div class="groups-join-section card">
+            <h3>Join Requests to Approve (My Groups)</h3>
+            {% for jr in pending_join_requests %}
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0;">
+                    <div>
+                        <strong>{{ jr.user }}</strong> requests to join <strong>{{ jr.group.title }}</strong> (#{{ jr.group.groupid }})
+                        <div style="font-size:12px; opacity:0.8;">
+                            {{ jr.created_at }}{% if jr.message %} · {{ jr.message }}{% endif %}
+                        </div>
+                    </div>
+                    <div>
+                        <button class="groups-join-btn" onclick="handleJoinRequest({{ jr.id }}, 'approve')">Approve</button>
+                        <button class="groups-join-btn" style="background:#666;" onclick="handleJoinRequest({{ jr.id }}, 'reject')">Reject</button>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if groups %}
+        <div class="groups-grid">
+            {% for group in groups %}
+                <div class="group-card card">
+                    <div class="group-card-header">
+                        <h3 class="group-card-title">{{ group.title }}</h3>
+                        <span class="group-card-id">#{{ group.groupid }}</span>
+                    </div>
+                    {% if group.description %}
+                        <p class="group-card-desc">{{ group.description }}</p>
+                    {% endif %}
+                    <div class="group-card-meta">
+                        <span>Owner: {{ group.creator }}</span>
+                        <span>Members: {{ group.member_count }}</span>
+                        <span>Messages: {{ group.message_count }}</span>
+                    </div>
+                    <div class="group-card-footer">
+                        <a href="{% url 'groups_detail' group.id %}" class="group-card-link">Enter Group</a>
+                        <span class="group-card-date">Created at {{ group.created_at }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="groups-empty">
+            <p>You have not joined any groups yet.</p>
+            <a href="{% url 'groups_create' %}" class="groups-create-btn">Create your first group</a>
+        </div>
+    {% endif %}
+</div>
+
+{% csrf_token %}
+<script>
+function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function getCsrfToken() {
+    var token = getCookie('csrftoken');
+    if (!token) {
+        var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (csrfInput) {
+            token = csrfInput.value;
+        }
+    }
+    return token;
+}
+
+document.getElementById('joinGroupForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var groupId = document.getElementById('joinGroupId').value.trim();
+    if (!groupId) {
+        showModal('Please enter a group ID.', 'warning');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('groupid', groupId);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+    
+    fetch('/groups/join/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        return response.json();
+    })
+    .then(function(data) {
+        if (data.success) {
+            showModal(data.message || 'Request submitted!', 'success', function() {
+                location.reload();
+            });
+        } else {
+            showModal('Failed to join group: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(function(error) {
+        showModal('Failed to join group: ' + error, 'error');
+    });
+});
+
+function respondInvite(inviteId, action) {
+    var formData = new FormData();
+    formData.append('action', action);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+    fetch('/groups/invite/' + inviteId + '/respond/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+        if (data.success) {
+            showModal('Invite ' + data.status + '.', 'success', function(){ location.reload(); });
+        } else {
+            showModal('Failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(function(err){
+        showModal('Failed: ' + err, 'error');
+    });
+}
+
+function handleJoinRequest(reqId, action) {
+    var formData = new FormData();
+    formData.append('action', action);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+    fetch('/groups/join-request/' + reqId + '/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+        if (data.success) {
+            showModal('Request ' + data.status + '.', 'success', function(){ location.reload(); });
+        } else {
+            showModal('Failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(function(err){
+        showModal('Failed: ' + err, 'error');
+    });
+}
+</script>
+{% endblock %}
