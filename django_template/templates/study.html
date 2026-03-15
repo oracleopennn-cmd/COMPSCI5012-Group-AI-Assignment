@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Resource Library{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="learn-header">
+        <h1 class="learn-title">Resources</h1>
+        <p class="learn-subtitle">Explore courses</p>
+        {% if path_id and path %}
+            <div class="learn-path-indicator">
+                <span class="learn-path-indicator-dot"></span>
+                <span class="learn-path-indicator-text">Adding resources to \"{{ path.title }}\"</span>
+                <a href="{% url 'path_detail' path.id %}" class="learn-path-indicator-link">Back</a>
+            </div>
+        {% endif %}
+
+        <form class="learn-search" method="get">
+            {% if path_id %}<input type="hidden" name="path_id" value="{{ path_id }}">{% endif %}
+            <input type="text" name="q" value="{{ q }}" placeholder="Search" class="learn-search-input">
+        </form>
+
+        {# stats will be replaced by AJAX too #}
+        <div id="study-partial-stats">
+            <div class="learn-stats">
+                <div class="stat-block">
+                    <div class="stat-label">Total</div>
+                    <div class="stat-value" id="stat-total">{{ total_count }}</div>
+                </div>
+                <div class="stat-block">
+                    <div class="stat-label">Filtered</div>
+                    <div class="stat-value" id="stat-filtered">{{ filtered_count }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="recommend-section" style="grid-column: 1 / -1;">
+            <h3>Resource List</h3>
+            <div id="study-partial">
+                {% include "partials/study_list.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+  (function () {
+    var input = document.querySelector('.learn-search-input');
+    var partialRoot = document.getElementById('study-partial');
+
+    var pathId = new URLSearchParams(window.location.search).get('path_id');
+    
+    function buildUrl(page) {
+      var q = (input && input.value) ? input.value : '';
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (page) params.push('page=' + encodeURIComponent(page));
+      if (pathId) params.push('path_id=' + encodeURIComponent(pathId));
+      params.push('partial=1');
+      return '/study/?' + params.join('&');
+    }
+
+    var timer = null;
+    function fetchAndReplace(page, pushState) {
+      var url = buildUrl(page);
+      fetch(url, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          partialRoot.innerHTML = data.html;
+          var st = document.getElementById('stat-total');
+          var sf = document.getElementById('stat-filtered');
+          if (st) st.textContent = data.total;
+          if (sf) sf.textContent = data.filtered;
+          if (pushState) {
+            var q = (input && input.value) ? input.value : '';
+            var params = [];
+            if (q) params.push('q=' + encodeURIComponent(q));
+            if (page) params.push('page=' + encodeURIComponent(page));
+            var newUrl = '/study/' + (params.length ? ('?' + params.join('&')) : '') + '#resource-list';
+            window.history.pushState({ q: q, page: page || 1 }, '', newUrl);
+          }
+        });
+    }
+
+    if (input) {
+      input.addEventListener('input', function () {
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(function () { fetchAndReplace(1, true); }, 250);
+      });
+    }
+
+        document.addEventListener('click', function (e) {
+      var a = e.target;
+      if (a && a.classList && a.classList.contains('page-link') && a.getAttribute('data-page')) {
+        e.preventDefault();
+        fetchAndReplace(a.getAttribute('data-page'), true);
+      }
+    });
+  })();
+  
+  function getCookie(name) {
+    var cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      var cookies = document.cookie.split(';');
+      for (var i = 0; i < cookies.length; i++) {
+        var cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+  
+  function getCsrfToken() {
+    var token = getCookie('csrftoken');
+    if (!token) {
+      var csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+      if (csrfInput) {
+        token = csrfInput.value;
+      }
+    }
+    return token;
+  }
+  
+  function addToPath(pathId, resourceId) {
+    var formData = new FormData();
+    formData.append('resource_id', resourceId);
+    formData.append('csrfmiddlewaretoken', getCsrfToken());
+    
+    fetch('/path/' + pathId + '/add-resource/', {
+      method: 'POST',
+      body: formData,
+      credentials: 'same-origin'
+    })
+    .then(function(response) {
+      return response.json();
+    })
+    .then(function(data) {
+      if (data.success) {
+        // Only show success message, do not ask to return to path detail page
+        showModal('Successfully added to the learning path!', 'success');
+      } else {
+        showModal(data.error || 'Add failed', 'error');
+      }
+    })
+    .catch(function(error) {
+      showModal('Add failed: ' + error, 'error');
+    });
+  }
+</script>
+{% endblock %}
+
