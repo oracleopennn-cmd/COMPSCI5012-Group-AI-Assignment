@@ -1,14 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>forum_new</title>
-</head>
-<body>
-
-</body>
-</html>
 {% extends "base.html" %}
 
 {% block title %}Create New Post{% endblock %}
@@ -101,7 +90,7 @@ document.querySelector('.forum-post-form').addEventListener('submit', function(e
     }
 });
 
-// Extracting image URLs from the editor
+// 从编辑器中提取图片URL
 function extractImageUrl() {
     var img = editor.querySelector('img');
     if (img && img.src) {
