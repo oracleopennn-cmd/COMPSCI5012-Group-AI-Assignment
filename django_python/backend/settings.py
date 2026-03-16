@@ -34,7 +34,7 @@ SECRET_KEY = 'x@674is!n)o+(enmofkkdi&ok*0d2e9ycksp_=7ji*$ti^!4_u'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['compsci5012-group-ai-assignment.onrender.com']
 
 
 # Application definition
