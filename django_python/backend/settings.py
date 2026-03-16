@@ -18,7 +18,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Path to the sibling django_template directory (for templates & static files)
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 DJANGO_TEMPLATE_DIR = os.path.join(PROJECT_ROOT, 'django_template')
-
+STATICFILES_DIRS = [
+    os.path.join(PROJECT_ROOT, "django_template", "static"),
+]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Public directory (for images etc.)
 # Images are served in development via backend/urls.py: /public/* -> PUBLIC_DIR
 # Current location: <BASE_DIR>/public  (e.g. C:\...\django_python\public)
@@ -34,7 +37,7 @@ SECRET_KEY = 'x@674is!n)o+(enmofkkdi&ok*0d2e9ycksp_=7ji*$ti^!4_u'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['compsci5012-group-ai-assignment.onrender.com']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -58,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
