@@ -1,11 +1,42 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>groups_create</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}Create Study Group{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="group-form-header">
+        <h2>Create Study Group</h2>
+        <a href="{% url 'groups_page' %}">Back to list</a>
+    </div>
+
+    <div class="card group-form-card">
+        {% if error %}
+            <div class="group-form-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" class="group-form">
+            {% csrf_token %}
+            <div class="group-form-field">
+                <label class="group-form-label">Group Name *</label>
+                <input type="text" name="title" class="group-form-input" required placeholder="e.g. French Learners Group">
+            </div>
+
+            <div class="group-form-field">
+                <label class="group-form-label">Group ID *</label>
+                <input type="text" name="groupid" class="group-form-input" value="{{ random_groupid }}" required placeholder="5-digit numeric ID">
+                <small class="group-form-hint">Group ID is used for others to join; we recommend using a random number.</small>
+            </div>
+
+            <div class="group-form-field">
+                <label class="group-form-label">Group Description</label>
+                <textarea name="description" class="group-form-textarea" rows="4" placeholder="Describe the goal and content of this group..."></textarea>
+            </div>
+
+            <div class="group-form-actions">
+                <button type="submit" class="group-form-submit">Create Group</button>
+                <a href="{% url 'groups_page' %}" class="group-form-cancel">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,11 +1,101 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>forum_new</title>
-</head>
-<body>
+{% extends "base.html" %}
 
-</body>
-</html>
+{% block title %}Create New Post{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="forum-new-header">
+        <a href="{% url 'forum_page' %}" class="forum-back-link">← Back to Forum</a>
+    </div>
+
+    {% if error %}
+        <div class="forum-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="forum-editor-card card">
+        <form method="post" enctype="multipart/form-data" class="forum-post-form">
+            {% csrf_token %}
+            
+            <div class="forum-editor-toolbar">
+                <select class="forum-toolbar-select" id="formatSelect">
+                    <option value="p">Paragraph</option>
+                    <option value="h1">Heading 1</option>
+                    <option value="h2">Heading 2</option>
+                    <option value="h3">Heading 3</option>
+                </select>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('bold')" title="Bold">
+                    <strong>B</strong>
+                </button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('italic')" title="Italic">
+                    <em>I</em>
+                </button>
+                <div class="forum-toolbar-divider"></div>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('justifyLeft')" title="Align Left">⬅</button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('justifyCenter')" title="Align Center">⬌</button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('justifyRight')" title="Align Right">➡</button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('justifyFull')" title="Justify">⬌⬌</button>
+                <div class="forum-toolbar-divider"></div>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('insertUnorderedList')" title="Bullet List">•</button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('insertOrderedList')" title="Numbered List">1.</button>
+                <div class="forum-toolbar-divider"></div>
+                <button type="button" class="forum-toolbar-btn" onclick="insertImage()" title="Insert Image">🖼</button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('formatBlock', 'blockquote')" title="Quote">"</button>
+                <div class="forum-toolbar-divider"></div>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('undo')" title="Undo">↶</button>
+                <button type="button" class="forum-toolbar-btn" onclick="formatText('redo')" title="Redo">↷</button>
+            </div>
+
+            <div class="forum-editor-content" id="editor" contenteditable="true" placeholder="Write your post..."></div>
+            <textarea name="content" id="contentInput" style="display:none;"></textarea>
+
+            <div class="forum-editor-footer">
+                <label class="forum-image-upload">
+                    <input type="file" name="image" accept="image/*" style="display:none;">
+                    <span class="forum-image-upload-btn">Upload Image</span>
+                </label>
+                <button type="submit" class="forum-publish-btn">Publish</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+var editor = document.getElementById('editor');
+
+function formatText(command, value) {
+    document.execCommand(command, false, value);
+    editor.focus();
+}
+
+function insertImage() {
+    var url = prompt('Enter image URL:');
+    if (url) {
+        document.execCommand('insertImage', false, url);
+    }
+}
+
+// 同步contenteditable内容到textarea
+editor.addEventListener('input', function() {
+    document.getElementById('contentInput').value = editor.innerHTML;
+});
+
+// 表单提交前同步内容
+document.querySelector('.forum-post-form').addEventListener('submit', function(e) {
+    document.getElementById('contentInput').value = editor.innerHTML;
+    extractImageUrl();
+    if (!editor.textContent.trim()) {
+        e.preventDefault();
+        showModal('Please enter some content for your post.', 'warning');
+        return false;
+    }
+});
+
+// 从编辑器中提取图片URL
+function extractImageUrl() {
+    var img = editor.querySelector('img');
+    if (img && img.src) {
+        document.getElementById('imageUrlInput').value = img.src;
+    }
+}
+</script>
+{% endblock %}
