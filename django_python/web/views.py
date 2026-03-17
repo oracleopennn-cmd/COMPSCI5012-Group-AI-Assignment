@@ -397,9 +397,6 @@ def signup_view(request):
             except ValueError:
                 error = u"Invalid scholar level."
 
-    return render(request, 'signup.html', {'error': error})
-
-
 def login_view(request):
     """
     Simple login page: username + password.
@@ -425,8 +422,7 @@ def logout_view(request):
     """
     退出登录，并返回首页。
     """
-    logout(request)
-    return redirect('/')
+
 
 
 def profile_view(request):
@@ -600,8 +596,6 @@ def study_detail_legacy(request, rid):
     - 如果 <id> 是纯数字，则重定向到 /study_detail/?id=<id>
     - 否则保持原路径但加上 ?id=，方便后端统一处理
     """
-    rid_str = _clean_str(rid)
-    return redirect('/study_detail/?id=%s' % rid_str)
 
 
 def path_page(request):
@@ -1305,6 +1299,7 @@ def groups_invite(request, group_id):
     return JsonResponse({'success': True, 'message': 'Invite sent.', 'invite_id': inv.id})
 
 
+
 def groups_respond_invite(request, invite_id):
     """
     Invitee accepts/declines an invitation.
@@ -1339,7 +1334,6 @@ def groups_respond_invite(request, invite_id):
         inv.status = GroupInvite.STATUS_DECLINED
         inv.save()
         return JsonResponse({'success': True, 'status': 'declined'})
-
 
 def groups_kick_member(request, group_id, user_id):
     """
