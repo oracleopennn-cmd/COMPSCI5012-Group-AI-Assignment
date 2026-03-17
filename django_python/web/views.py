@@ -5,7 +5,9 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db import transaction
 from django.db.models import Q, Max, Count
+from django.db.utils import IntegrityError, OperationalError
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -1157,15 +1159,18 @@ def groups_create(request):
         elif Group.objects.filter(groupid=groupid).exists():
             error = u"Group ID already exists."
         else:
-            group = Group.objects.create(
-                groupid=groupid,
-                title=title,
-                description=description,
-                creator=request.user,
-            )
-            # 创建者自动加入群组
-            GroupMember.objects.create(group=group, user=request.user)
-            return redirect('/groups/%s/' % group.id)
+            try:
+                with transaction.atomic():
+                    group = Group.objects.create(
+                        groupid=groupid,
+                        title=title,
+                        description=description,
+                        creator=request.user,
+                    )
+                    GroupMember.objects.create(group=group, user=request.user)
+                return redirect('/groups/%s/' % group.id)
+            except (IntegrityError, OperationalError):
+                error = u"Group creation failed (possibly duplicate Group ID). Please try again."
     
     # 生成随机群组ID
     import random
@@ -1191,33 +1196,35 @@ def groups_join(request):
             return JsonResponse({'error': 'Group ID is required.'}, status=400)
         
         try:
-            group = Group.objects.get(groupid=groupid)
-            if GroupMember.objects.filter(group=group, user=request.user).exists():
-                return JsonResponse({'success': True, 'message': 'Already a member.', 'group_id': group.id})
+            with transaction.atomic():
+                group = Group.objects.get(groupid=groupid)
+                if GroupMember.objects.filter(group=group, user=request.user).exists():
+                    return JsonResponse({'success': True, 'message': 'Already a member.', 'group_id': group.id})
 
-            # Group owner auto-joins
-            if group.creator_id == request.user.id:
-                GroupMember.objects.get_or_create(group=group, user=request.user)
-                return JsonResponse({'success': True, 'message': 'Owner joined.', 'group_id': group.id})
-
-            jr, created = GroupJoinRequest.objects.get_or_create(
-                group=group,
-                user=request.user,
-                defaults={'status': GroupJoinRequest.STATUS_PENDING}
-            )
-            if not created:
-                if jr.status in [GroupJoinRequest.STATUS_REJECTED, GroupJoinRequest.STATUS_CANCELLED]:
-                    jr.status = GroupJoinRequest.STATUS_PENDING
-                    jr.handled_at = None
-                    jr.handled_by = None
-                    jr.save()
-                elif jr.status == GroupJoinRequest.STATUS_APPROVED:
+                if group.creator_id == request.user.id:
                     GroupMember.objects.get_or_create(group=group, user=request.user)
-                    return JsonResponse({'success': True, 'message': 'Joined.', 'group_id': group.id})
+                    return JsonResponse({'success': True, 'message': 'Owner joined.', 'group_id': group.id})
 
-            return JsonResponse({'success': True, 'message': 'Join request submitted.', 'group_id': group.id, 'request_id': jr.id})
+                jr, created = GroupJoinRequest.objects.get_or_create(
+                    group=group,
+                    user=request.user,
+                    defaults={'status': GroupJoinRequest.STATUS_PENDING}
+                )
+                if not created:
+                    if jr.status in [GroupJoinRequest.STATUS_REJECTED, GroupJoinRequest.STATUS_CANCELLED]:
+                        jr.status = GroupJoinRequest.STATUS_PENDING
+                        jr.handled_at = None
+                        jr.handled_by = None
+                        jr.save()
+                    elif jr.status == GroupJoinRequest.STATUS_APPROVED:
+                        GroupMember.objects.get_or_create(group=group, user=request.user)
+                        return JsonResponse({'success': True, 'message': 'Joined.', 'group_id': group.id})
+
+                return JsonResponse({'success': True, 'message': 'Join request submitted.', 'group_id': group.id, 'request_id': jr.id})
         except Group.DoesNotExist:
             return JsonResponse({'error': 'Group does not exist.'}, status=404)
+        except (IntegrityError, OperationalError):
+            return JsonResponse({'error': 'Operation failed. Please try again.'}, status=500)
     
     return JsonResponse({'error': 'Invalid request.'}, status=400)
 
@@ -1249,15 +1256,19 @@ def groups_handle_join_request(request, req_id):
     jr.handled_by = request.user
     jr.handled_at = timezone.now()
 
-    if action == 'approve':
-        jr.status = GroupJoinRequest.STATUS_APPROVED
-        jr.save()
-        GroupMember.objects.get_or_create(group=jr.group, user=jr.user)
-        return JsonResponse({'success': True, 'status': 'approved'})
-    else:
-        jr.status = GroupJoinRequest.STATUS_REJECTED
-        jr.save()
-        return JsonResponse({'success': True, 'status': 'rejected'})
+    try:
+        with transaction.atomic():
+            if action == 'approve':
+                jr.status = GroupJoinRequest.STATUS_APPROVED
+                jr.save()
+                GroupMember.objects.get_or_create(group=jr.group, user=jr.user)
+                return JsonResponse({'success': True, 'status': 'approved'})
+            else:
+                jr.status = GroupJoinRequest.STATUS_REJECTED
+                jr.save()
+                return JsonResponse({'success': True, 'status': 'rejected'})
+    except (IntegrityError, OperationalError):
+        return JsonResponse({'error': 'Operation failed. Please try again.'}, status=500)
 
 
 def groups_invite(request, group_id):
@@ -1291,18 +1302,36 @@ def groups_invite(request, group_id):
     if GroupMember.objects.filter(group=group, user=invitee).exists():
         return JsonResponse({'success': True, 'message': 'User is already a member.'})
 
-    inv, created = GroupInvite.objects.get_or_create(group=group, invitee=invitee, defaults={'inviter': request.user})
-    if not created:
-        if inv.status in [GroupInvite.STATUS_DECLINED, GroupInvite.STATUS_CANCELLED]:
-            inv.status = GroupInvite.STATUS_PENDING
-            inv.inviter = request.user
-            inv.responded_at = None
-            inv.save()
-        elif inv.status == GroupInvite.STATUS_ACCEPTED:
-            GroupMember.objects.get_or_create(group=group, user=invitee)
-            return JsonResponse({'success': True, 'message': 'User already accepted invite.'})
-
-    return JsonResponse({'success': True, 'message': 'Invite sent.', 'invite_id': inv.id})
+    try:
+        with transaction.atomic():
+            inv, created = GroupInvite.objects.get_or_create(
+                group=group,
+                invitee=invitee,
+                defaults={
+                    'inviter': request.user,
+                    'status': GroupInvite.STATUS_PENDING,
+                }
+            )
+            if created:
+                GroupMember.objects.filter(group=group, user=invitee).delete()
+                return JsonResponse({'success': True, 'message': 'Invite sent.', 'invite_id': inv.id})
+            # Existing invite
+            if inv.status in [GroupInvite.STATUS_DECLINED, GroupInvite.STATUS_CANCELLED]:
+                inv.status = GroupInvite.STATUS_PENDING
+                inv.inviter = request.user
+                inv.responded_at = None
+                inv.save()
+            elif inv.status == GroupInvite.STATUS_ACCEPTED:
+                # Invite says accepted but invitee is not in group (e.g. old data or was kicked).
+                # Reset to PENDING so they can see it on /groups/ and accept again.
+                inv.status = GroupInvite.STATUS_PENDING
+                inv.inviter = request.user
+                inv.responded_at = None
+                inv.save()
+            GroupMember.objects.filter(group=group, user=invitee).delete()
+            return JsonResponse({'success': True, 'message': 'Invite sent.', 'invite_id': inv.id})
+    except (IntegrityError, OperationalError):
+        return JsonResponse({'error': 'Operation failed. Please try again.'}, status=500)
 
 
 def groups_respond_invite(request, invite_id):
@@ -1330,15 +1359,19 @@ def groups_respond_invite(request, invite_id):
         return JsonResponse({'error': 'Invite is not pending.'}, status=400)
 
     inv.responded_at = timezone.now()
-    if action == 'accept':
-        inv.status = GroupInvite.STATUS_ACCEPTED
-        inv.save()
-        GroupMember.objects.get_or_create(group=inv.group, user=inv.invitee)
-        return JsonResponse({'success': True, 'status': 'accepted', 'group_id': inv.group_id})
-    else:
-        inv.status = GroupInvite.STATUS_DECLINED
-        inv.save()
-        return JsonResponse({'success': True, 'status': 'declined'})
+    try:
+        with transaction.atomic():
+            if action == 'accept':
+                inv.status = GroupInvite.STATUS_ACCEPTED
+                inv.save()
+                GroupMember.objects.get_or_create(group=inv.group, user=inv.invitee)
+                return JsonResponse({'success': True, 'status': 'accepted', 'group_id': inv.group_id})
+            else:
+                inv.status = GroupInvite.STATUS_DECLINED
+                inv.save()
+                return JsonResponse({'success': True, 'status': 'declined'})
+    except (IntegrityError, OperationalError):
+        return JsonResponse({'error': 'Operation failed. Please try again.'}, status=500)
 
 
 def groups_kick_member(request, group_id, user_id):
@@ -1362,8 +1395,12 @@ def groups_kick_member(request, group_id, user_id):
     if int(user_id) == int(group.creator_id):
         return JsonResponse({'error': 'Cannot kick the group owner.'}, status=400)
 
-    GroupMember.objects.filter(group=group, user_id=user_id).delete()
-    return JsonResponse({'success': True})
+    try:
+        with transaction.atomic():
+            GroupMember.objects.filter(group=group, user_id=user_id).delete()
+        return JsonResponse({'success': True})
+    except (IntegrityError, OperationalError) as e:
+        return JsonResponse({'error': 'Operation failed. Please try again.'}, status=500)
 
 
 def groups_send_message(request, group_id):
@@ -1386,20 +1423,24 @@ def groups_send_message(request, group_id):
         if not content:
             return JsonResponse({'error': 'Message content is required.'}, status=400)
         
-        message = GroupMessage.objects.create(
-            group=group,
-            user=request.user,
-            content=content,
-        )
-        return JsonResponse({
-            'success': True,
-            'message': {
-                'id': message.id,
-                'user': message.user.username,
-                'content': message.content,
-                'created_at': message.created_at.strftime("%Y/%m/%d %H:%M:%S"),
-            }
-        })
+        try:
+            with transaction.atomic():
+                message = GroupMessage.objects.create(
+                    group=group,
+                    user=request.user,
+                    content=content,
+                )
+            return JsonResponse({
+                'success': True,
+                'message': {
+                    'id': message.id,
+                    'user': message.user.username,
+                    'content': message.content,
+                    'created_at': message.created_at.strftime("%Y/%m/%d %H:%M:%S"),
+                }
+            })
+        except (IntegrityError, OperationalError):
+            return JsonResponse({'error': 'Failed to send message. Please try again.'}, status=500)
     
     return JsonResponse({'error': 'Invalid request.'}, status=400)
 
@@ -1554,11 +1595,14 @@ def admin_group_delete(request, group_id):
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid request.'}, status=400)
     try:
-        group = Group.objects.get(id=group_id)
-        group.delete()
+        with transaction.atomic():
+            group = Group.objects.get(id=group_id)
+            group.delete()
         return JsonResponse({'success': True})
     except Group.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
+    except (IntegrityError, OperationalError):
+        return JsonResponse({'error': 'Delete failed. Please try again.'}, status=500)
 
 
 def admin_user_delete(request, user_id):
@@ -1788,7 +1832,12 @@ def admin_group_create(request):
         return redirect('/admin-dashboard/groups/?error=groupid')
     if Group.objects.filter(groupid=groupid).exists():
         return redirect('/admin-dashboard/groups/?error=exists')
-    Group.objects.create(groupid=groupid, title=title, creator=request.user, description=description)
+    try:
+        with transaction.atomic():
+            group = Group.objects.create(groupid=groupid, title=title, creator=request.user, description=description)
+            GroupMember.objects.create(group=group, user=request.user)
+    except (IntegrityError, OperationalError):
+        return redirect('/admin-dashboard/groups/?error=exists')
     return redirect('/admin-dashboard/groups/')
 
 

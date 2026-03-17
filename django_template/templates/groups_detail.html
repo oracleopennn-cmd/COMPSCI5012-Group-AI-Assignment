@@ -59,6 +59,7 @@
                         <input type="text" id="inviteUsername" placeholder="Invite by username" class="group-invite-input">
                         <button type="submit" class="group-invite-btn">Invite</button>
                     </form>
+                    <p style="font-size:12px; color:#666; margin-top:6px;">Invited users must go to <strong>Groups</strong> page and click <strong>Accept</strong> to join.</p>
                 </div>
             {% endif %}
             <div class="group-members-list">
@@ -119,7 +120,11 @@ function inviteUser(username) {
     .then(function(r){ return r.json(); })
     .then(function(data){
         if (data.success) {
-            showModal(data.message || 'Invite sent.', 'success');
+            var msg = data.message || 'Invite sent.';
+            if (msg.indexOf('Invite sent') !== -1 || msg === 'Invite sent.') {
+                msg = 'Invite sent. They must go to the Groups page and click Accept to join.';
+            }
+            showModal(msg, 'success');
         } else {
             showModal('Failed to invite: ' + (data.error || 'Unknown error'), 'error');
         }

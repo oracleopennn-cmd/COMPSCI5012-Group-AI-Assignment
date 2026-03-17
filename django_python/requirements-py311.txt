@@ -1,0 +1,6 @@
+# Optional: use on Python 3.11 if Django 3.2 has compatibility issues
+# Install: pip install -r requirements-py311.txt
+
+Django>=4.1,<5
+gunicorn>=20.0,<22
+whitenoise>=5.2,<7

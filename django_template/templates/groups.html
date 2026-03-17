@@ -9,6 +9,25 @@
         <a href="{% url 'groups_create' %}" class="groups-create-btn">+ Create Group</a>
     </div>
 
+    {% if pending_invites %}
+    <div class="groups-join-section card" style="border:2px solid #28a745; background:#f0fff4;">
+        <h3 style="color:#155724;">Invitations for you (Accept to join)</h3>
+        <p style="font-size:13px; margin-bottom:12px;">You have {{ pending_invites|length }} pending invite(s). Accept to join the group.</p>
+        {% for inv in pending_invites %}
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0;">
+                <div>
+                    <strong>{{ inv.group.title }}</strong> (#{{ inv.group.groupid }})
+                    <div style="font-size:12px; opacity:0.8;">Invited by {{ inv.inviter }} · {{ inv.created_at }}</div>
+                </div>
+                <div>
+                    <button class="groups-join-btn" onclick="respondInvite({{ inv.id }}, 'accept')">Accept</button>
+                    <button class="groups-join-btn" style="background:#666;" onclick="respondInvite({{ inv.id }}, 'decline')">Decline</button>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <div class="groups-join-section card">
         <h3>Request to Join Group</h3>
         <form id="joinGroupForm" class="groups-join-form">
@@ -25,24 +44,6 @@
             </div>
         {% endif %}
     </div>
-
-    {% if pending_invites %}
-        <div class="groups-join-section card">
-            <h3>Pending Invites</h3>
-            {% for inv in pending_invites %}
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0;">
-                    <div>
-                        <strong>{{ inv.group.title }}</strong> (#{{ inv.group.groupid }})
-                        <div style="font-size:12px; opacity:0.8;">Invited by {{ inv.inviter }} · {{ inv.created_at }}</div>
-                    </div>
-                    <div>
-                        <button class="groups-join-btn" onclick="respondInvite({{ inv.id }}, 'accept')">Accept</button>
-                        <button class="groups-join-btn" style="background:#666;" onclick="respondInvite({{ inv.id }}, 'decline')">Decline</button>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
 
     {% if pending_join_requests %}
         <div class="groups-join-section card">
